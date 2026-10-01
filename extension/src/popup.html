@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 14px;
+        background: #101114;
+        color: #e5e7eb;
+        font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      h1 { margin: 0 0 12px; font-size: 15px; }
+      .label { margin-bottom: 6px; color: #8b8f9c; font-size: 12px; }
+      .routes { display: flex; gap: 6px; }
+      .routes button {
+        flex: 1;
+        padding: 8px 0;
+        border: 1px solid #2a2d37;
+        border-radius: 6px;
+        background: #15171c;
+        color: #8b8f9c;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .routes button.on { border-color: #e5e7eb; color: #fff; }
+      .routes button.on[data-route='padre'] { border-color: #f59e0b; color: #f59e0b; }
+      .routes button.on[data-route='gmgn'] { border-color: #22d3ee; color: #22d3ee; }
+      .hint { margin: 6px 0 12px; color: #6b7080; font-size: 11px; }
+      .row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; cursor: pointer; }
+      .row input { margin-top: 2px; }
+      details { margin-bottom: 12px; }
+      summary { cursor: pointer; color: #8b8f9c; }
+      details label { display: block; margin-top: 8px; color: #8b8f9c; font-size: 11px; }
+      details input {
+        box-sizing: border-box;
+        width: 100%;
+        margin-top: 3px;
+        padding: 5px 6px;
+        border: 1px solid #2a2d37;
+        border-radius: 4px;
+        background: #15171c;
+        color: #e5e7eb;
+        font: 11px ui-monospace, monospace;
+      }
+      details input.bad { border-color: #f87171; }
+      #warm {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #2a2d37;
+        border-radius: 6px;
+        background: #1a1c22;
+        color: #e5e7eb;
+        cursor: pointer;
+      }
+      #status { min-height: 16px; margin-top: 8px; color: #8b8f9c; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Terminal Router</h1>
+    <div class="label">Buy through</div>
+    <div class="routes" id="routes"></div>
+    <p class="hint">On Axiom: Alt+1 / Alt+2 / Alt+3, or the buttons beside Instant Trade.</p>
+
+    <label class="row"><input type="checkbox" id="dryRun" /><span><b>Test mode</b>: type the order on Padre/GMGN but don't press Buy</span></label>
+    <label class="row"><input type="checkbox" id="confirm" /><span>Ask before every Padre/GMGN buy</span></label>
+
+    <details>
+      <summary>Token page URLs</summary>
+      <label>Padre<input id="padreUrl" spellcheck="false" /></label>
+      <label>GMGN<input id="gmgnUrl" spellcheck="false" /></label>
+    </details>
+
+    <button id="warm">Open Padre &amp; GMGN tabs</button>
+    <div id="status"></div>
+
+    <script src="config.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

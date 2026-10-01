@@ -1,0 +1,121 @@
+:root {
+  --tr-axiom: #f4f4f5;
+  --tr-padre: #f59e0b;
+  --tr-gmgn: #22d3ee;
+}
+
+/* ---------- terminal picker rail ---------- */
+
+#tr-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483000;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  width: 68px;
+  box-sizing: border-box;
+  padding: 6px;
+  border: 1px solid #22242c;
+  border-radius: 6px;
+  background: #101114;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+#tr-rail .tr-term {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 58px;
+  border: 1px solid #2a2d37;
+  border-radius: 6px;
+  color: #8b8f9c;
+  font: 700 11px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms, box-shadow 120ms;
+}
+
+#tr-rail .tr-term:hover {
+  background: #1a1c22;
+  color: #d6d8de;
+}
+
+#tr-rail .tr-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+#tr-rail .tr-term[data-route='axiom'] { --c: var(--tr-axiom); }
+#tr-rail .tr-term[data-route='padre'] { --c: var(--tr-padre); }
+#tr-rail .tr-term[data-route='gmgn'] { --c: var(--tr-gmgn); }
+
+#tr-rail .tr-term.tr-active {
+  color: var(--c);
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 8%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c) 35%, transparent);
+}
+
+#tr-rail .tr-term.tr-active .tr-dot {
+  opacity: 1;
+}
+
+#tr-rail .tr-test {
+  display: none;
+  padding: 3px 0;
+  border-radius: 4px;
+  background: rgba(245, 197, 66, 0.12);
+  color: #f5c542;
+  font: 700 9px/1.2 system-ui, sans-serif;
+  text-align: center;
+}
+
+#tr-rail.tr-dry .tr-test {
+  display: block;
+}
+
+/* Recolour Axiom's buy presets so it is obvious where a click will go. */
+#instant-trade[data-tr-route='padre'] .text-increase.rounded-full {
+  border-color: var(--tr-padre) !important;
+  color: var(--tr-padre) !important;
+}
+
+#instant-trade[data-tr-route='gmgn'] .text-increase.rounded-full {
+  border-color: var(--tr-gmgn) !important;
+  color: var(--tr-gmgn) !important;
+}
+
+/* ---------- toast ---------- */
+
+#tr-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2147483001;
+  display: none;
+  max-width: 360px;
+  padding: 10px 14px;
+  border: 1px solid #2a2d37;
+  border-left: 3px solid #8b8f9c;
+  border-radius: 6px;
+  background: #15171c;
+  color: #e5e7eb;
+  font: 500 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  word-break: break-word;
+}
+
+#tr-toast.tr-show { display: block; }
+#tr-toast.tr-pending { border-left-color: #60a5fa; }
+#tr-toast.tr-ok { border-left-color: #34d399; }
+#tr-toast.tr-error { border-left-color: #f87171; }
+#tr-toast.tr-info { border-left-color: #a1a1aa; }
