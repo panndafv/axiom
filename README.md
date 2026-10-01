@@ -17,8 +17,10 @@ logged into in your browser.
 
 ## Use
 
-- On an Axiom token page, the rail next to Instant Trade shows the active terminal.
-  Click a terminal, or press **Alt+1** (Axiom), **Alt+2** (Padre) or **Alt+3** (GMGN).
+- On an Axiom token page, a row of AXIOM / PADRE / GMGN pills sits above Instant Trade and shows the
+  active terminal. Click a pill, or press **Alt+1** (Axiom), **Alt+2** (Padre) or **Alt+3** (GMGN).
+- Drag the dotted grip on the left of the pills to move them (e.g. next to your wallet groups). They
+  keep that position relative to the panel. Double-click the grip to put them back above the panel.
 - When Padre or GMGN is selected, Axiom's buy presets turn that terminal's colour, and clicking one
   sends the buy to that terminal instead of Axiom. A message in the bottom-right corner shows the result.
 - Sells always go through Axiom as normal.

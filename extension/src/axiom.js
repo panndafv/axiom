@@ -44,23 +44,29 @@
     }
   }
 
-  // ---------- terminal picker rail ----------
+  // ---------- terminal picker bar ----------
 
+  // A row of pills above the Instant Trade panel. Drag the grip to move it (e.g. next to your
+  // wallet groups); it keeps that position relative to the panel. Double-click the grip to reset.
   const rail = document.createElement('div');
   rail.id = 'tr-rail';
+  const grip = document.createElement('div');
+  grip.className = 'tr-grip';
+  grip.title = 'Drag to move. Double-click to put back above the panel.';
+  rail.appendChild(grip);
   for (const [route, t] of Object.entries(TR.TERMINALS)) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tr-term';
     b.dataset.route = route;
     b.title = `Buy through ${t.label} (Alt+${t.key})`;
-    b.innerHTML = `<span class="tr-dot"></span><span class="tr-name">${t.label}</span>`;
+    b.innerHTML = `<span class="tr-dot"></span>${t.label}`;
     b.addEventListener('click', () => setRoute(route));
     rail.appendChild(b);
   }
   const testBadge = document.createElement('div');
   testBadge.className = 'tr-test';
-  testBadge.textContent = 'TEST MODE';
+  testBadge.textContent = 'TEST';
   testBadge.title = 'Padre/GMGN orders are filled in but Buy is not pressed. Turn off in the extension popup.';
   rail.appendChild(testBadge);
   document.documentElement.appendChild(rail);
@@ -72,6 +78,35 @@
     rail.classList.toggle('tr-dry', Boolean(settings.dryRun) && settings.route !== 'axiom');
   }
 
+  // Offset of the bar from the panel's top-left corner; null = default (just above the panel).
+  let offset = null;
+  chrome.storage.local.get('barOffset').then(({ barOffset }) => (offset = barOffset ?? null));
+
+  let drag = null;
+  grip.addEventListener('pointerdown', (e) => {
+    const panel = document.querySelector(PANEL);
+    if (!panel) return;
+    const p = panel.getBoundingClientRect();
+    const b = rail.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, dx: b.left - p.left, dy: b.top - p.top };
+    grip.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  grip.addEventListener('pointermove', (e) => {
+    if (drag) offset = { dx: drag.dx + e.clientX - drag.x, dy: drag.dy + e.clientY - drag.y };
+  });
+  grip.addEventListener('pointerup', () => {
+    if (!drag) return;
+    drag = null;
+    chrome.storage.local.set({ barOffset: offset });
+  });
+  grip.addEventListener('dblclick', () => {
+    offset = null;
+    chrome.storage.local.remove('barOffset');
+  });
+
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+
   // Follow the panel around: it is draggable, resizable and can be closed.
   function place() {
     const panel = document.querySelector(PANEL);
@@ -81,8 +116,11 @@
     } else {
       rail.style.display = 'flex';
       const w = rail.offsetWidth;
-      const left = r.left - w - RAIL_GAP >= 0 ? r.left - w - RAIL_GAP : r.right + RAIL_GAP;
-      rail.style.transform = `translate(${Math.round(left)}px, ${Math.round(r.top)}px)`;
+      const h = rail.offsetHeight;
+      const { dx, dy } = offset ?? { dx: 0, dy: -h - RAIL_GAP };
+      const x = clamp(r.left + dx, 0, innerWidth - w);
+      const y = clamp(r.top + dy, 0, innerHeight - h);
+      rail.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       if (panel.dataset.trRoute !== settings.route) panel.dataset.trRoute = settings.route;
     }
     requestAnimationFrame(place);
