@@ -36,13 +36,20 @@ async function resolveMint({ pair }) {
   return null;
 }
 
-async function buy({ route, amount, mint }) {
+async function buy({ route, amount, index, mint }) {
   if (!TR.SITES[route]) throw new Error(`Unknown terminal: ${route}`);
   const settings = await TR.getSettings();
   const url = settings[`${route}Url`].replaceAll('{mint}', mint);
   const { tabId, stale } = await terminalTab(route, url);
   await whenReady(tabId, stale);
-  const res = await chrome.tabs.sendMessage(tabId, { type: 'tr-exec', amount, mint, dryRun: settings.dryRun });
+  const res = await chrome.tabs.sendMessage(tabId, {
+    type: 'tr-exec',
+    amount,
+    index,
+    mint,
+    dryRun: settings.dryRun,
+    matchByPosition: settings.matchByPosition,
+  });
   return res ?? { ok: false, message: `${TR.SITES[route].label} tab did not answer.` };
 }
 

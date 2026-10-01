@@ -23,14 +23,20 @@ logged into in your browser.
   sends the buy to that terminal instead of Axiom. A message in the bottom-right corner shows the result.
 - Sells always go through Axiom as normal.
 
-### GMGN
+### Padre and GMGN presets
 
-GMGN buys use GMGN's **Instant Trade** panel. The extension clicks the GMGN preset with the same
-amount as the Axiom button you clicked. So:
+Padre and GMGN buys use each site's floating **Instant Trade** panel. The extension clicks the preset
+on that panel with the same amount as the Axiom button you clicked. So:
 
-- Keep GMGN's Instant Trade panel open in the pinned GMGN tab.
-- Give GMGN the same buy presets as Axiom. If GMGN has no matching preset, nothing is bought and you get an error that lists GMGN's presets.
-- GMGN's panel must be set to pay with **SOL** (not USDC/USD1). Otherwise the extension refuses to buy.
+- Keep the Instant Trade panel open in the pinned Padre and GMGN tabs.
+- Give them the same buy presets as Axiom where you can. If there is no matching preset, nothing is
+  bought and you get an error listing that site's presets.
+- Or turn on **"same position"** in the popup: when amounts differ, the extension clicks the preset in
+  the same position as your Axiom button (e.g. Axiom's 7th button 0.0001 → Padre's 7th button 0.001).
+  The result message always says the amount that was actually bought.
+- Pay with **SOL**, not USDC/USD1. GMGN is checked automatically; on Padre, keep SOL selected yourself.
+- Each site buys from the wallets selected **on that site**. If Padre has 3 wallets ticked, one
+  click buys with all 3.
 
 ### Test mode (on by default)
 
@@ -44,7 +50,7 @@ Test mode off in the popup. Start with tiny amounts (e.g. 0.0001 SOL).
 2. It gets the token's mint address: DexScreener maps Axiom's pair address to the mint, and if that
    fails it reads pump.fun/Solscan links on the page.
 3. `src/background.js` opens (or reuses) a dedicated pinned Padre/GMGN tab on that token's page.
-4. `src/terminal-buyer.js` runs inside that tab. It clicks the matching buy preset (GMGN), or types
+4. `src/terminal-buyer.js` runs inside that tab. It clicks the matching buy preset (Padre/GMGN), or types
    the amount into the amount box and presses Buy, then reports the site's own success/error message back.
 
 ## Known limits

@@ -26,10 +26,10 @@
     return true;
   });
 
-  async function placeOrder({ amount, dryRun }) {
+  async function placeOrder({ amount, index, dryRun, matchByPosition }) {
     // A matching one-click preset wins; otherwise use an amount box + Buy button.
     const find = () => {
-      const preset = findPreset(amount);
+      const preset = findPreset(amount, matchByPosition ? index : -1);
       if (preset?.kind === 'preset') return preset;
       const form = findBuyForm();
       return form ? { kind: 'form', ...form } : preset;
@@ -45,21 +45,27 @@
     if (hit.kind === 'nopreset') {
       throw new Error(
         `${site.label} has no ${amount} SOL preset (it has ${hit.presets.join(', ')}). ` +
-          `Add one in ${site.label}'s Instant Trade panel, or click a matching amount on Axiom.`,
+          `Add one on ${site.label}, click a matching amount on Axiom, or turn on "same position" in the extension popup.`,
       );
     }
-    return hit.kind === 'preset' ? clickPreset(hit.button, amount, dryRun) : fillForm(hit, amount, dryRun);
+    return hit.kind === 'preset' ? clickPreset(hit, amount, dryRun) : fillForm(hit, amount, dryRun);
   }
 
-  async function clickPreset(button, amount, dryRun) {
+  async function clickPreset({ button, byPosition }, amount, dryRun) {
     checkCurrency(button);
+    const value = text(button);
+    const what = byPosition
+      ? `${site.label}'s ${value} SOL preset (same position as your ${amount} button)`
+      : `the ${value} SOL preset on ${site.label}`;
     if (dryRun) {
       mark(button);
-      return { ok: true, message: `TEST MODE: found the ${amount} SOL preset on ${site.label} but did not click it.` };
+      return { ok: true, message: `TEST MODE: found ${what} but did not click it.` };
     }
     const outcome = watchOutcome(10000);
     press(button);
-    return outcome;
+    const result = await outcome;
+    if (byPosition) result.message = `Bought ${value} SOL, not ${amount}. ${result.message}`;
+    return result;
   }
 
   // Refuse to buy if the panel is set to pay with USDC/USD1 instead of SOL.
@@ -94,14 +100,34 @@
 
   // ---------- finding the buy controls ----------
 
-  // { kind: 'preset', button } when a preset matches, { kind: 'nopreset', presets } when
-  // presets exist but none match, null when the site shows no presets.
-  function findPreset(amount) {
-    if (!site.presetBuy) return null;
-    const buttons = [...document.querySelectorAll(site.presetBuy)].filter(visible);
+  // { kind: 'preset', button, byPosition } when a preset matches (by amount, else by position
+  // when index >= 0), { kind: 'nopreset', presets } when presets exist but none fit, null when
+  // the site shows no presets.
+  function findPreset(amount, index) {
+    const buttons = presetButtons();
     if (!buttons.length) return null;
-    const button = buttons.find((b) => Number(text(b)) === amount);
-    return button ? { kind: 'preset', button } : { kind: 'nopreset', presets: buttons.map(text) };
+    const exact = buttons.find((b) => Number(text(b)) === amount);
+    if (exact) return { kind: 'preset', button: exact, byPosition: false };
+    if (index >= 0 && buttons[index]) return { kind: 'preset', button: buttons[index], byPosition: true };
+    return { kind: 'nopreset', presets: buttons.map(text) };
+  }
+
+  const NUMBER = /^\d*\.?\d+$/;
+
+  function presetButtons() {
+    if (site.presetBuy) return [...document.querySelectorAll(site.presetBuy)].filter(visible);
+    if (!site.presetLabel) return [];
+    // Walk up from the "Buy" heading to the first container holding numeric buttons.
+    for (const scope of document.querySelectorAll(site.presetScope)) {
+      for (const label of scope.querySelectorAll('span, p')) {
+        if (text(label) !== site.presetLabel) continue;
+        for (let n = label.parentElement, depth = 0; n && n !== scope && depth < 6; n = n.parentElement, depth++) {
+          const buttons = [...n.querySelectorAll('button')].filter((b) => visible(b) && !b.disabled && NUMBER.test(text(b)));
+          if (buttons.length) return buttons;
+        }
+      }
+    }
+    return [];
   }
 
   function bySelectors(list) {
@@ -234,7 +260,7 @@
   function watchOutcome(timeout) {
     const OK = /success|bought|confirmed|submitted|sent/i;
     const BAD = /fail|error|insufficient|rejected|not enough|expired|exceeds/i;
-    const TOAST = '[data-sonner-toast], .Toastify__toast, [role="alert"], [role="status"], [class*="toast" i], [class*="notif" i], [class*="message" i], [class*="snackbar" i]';
+    const TOAST = '#transaction-toasts-container, [data-testid*="snackbar" i], [data-sonner-toast], .Toastify__toast, [role="alert"], [role="status"], [class*="toast" i], [class*="notif" i], [class*="message" i], [class*="snackbar" i]';
     return new Promise((resolve) => {
       const finish = (result) => {
         obs.disconnect();

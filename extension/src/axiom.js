@@ -123,7 +123,9 @@
     const text = btn.textContent.trim();
     const amount = Number(text);
     if (!(amount > 0)) return toast('error', `"${text}" is not a SOL amount.`);
-    const unit = btn.closest(PANEL).querySelector('.buy-click-container button span')?.textContent.trim();
+    const panel = btn.closest(PANEL);
+    const unit = panel.querySelector('.buy-click-container button span')?.textContent.trim();
+    const index = [...panel.querySelectorAll('.rounded-full.cursor-pointer.text-increase')].indexOf(btn);
     if (unit && unit !== 'SOL') return toast('error', `Switch Axiom's Buy unit to SOL first (it is ${unit}).`);
 
     try {
@@ -133,7 +135,7 @@
         return toast('info', 'Cancelled.');
       }
       toast('pending', `${settings.dryRun ? 'TEST: ' : ''}Buying ${amount} SOL through ${name}…`);
-      const res = await send({ type: 'tr-buy', route, amount, mint });
+      const res = await send({ type: 'tr-buy', route, amount, index, mint });
       toast(res?.ok ? 'ok' : 'error', res?.message || 'No response from the extension.');
     } catch (err) {
       toast('error', err.message);

@@ -13,11 +13,16 @@
     // Test mode: types the amount on Padre/GMGN but never presses Buy.
     dryRun: true,
     confirm: false,
+    // When a terminal has no preset with the clicked amount, click its preset in the same
+    // position as the Axiom button instead (e.g. Axiom 0.0001 -> Padre 0.001).
+    matchByPosition: false,
     padreUrl: 'https://trade.padre.gg/trade/solana/{mint}',
     gmgnUrl: 'https://gmgn.ai/sol/token/{mint}',
   };
 
   // presetBuy:        the site's one-click buy amount buttons (clicked when one matches the amount).
+  // presetScope + presetLabel: alternative to presetBuy. Inside presetScope, the numeric buttons
+  //                   in the section headed by the text presetLabel.
   // panelRoot:        the panel holding those presets.
   // currencySelected: the highlighted "pay with" option in that panel; currencySol must match inside it.
   // amountInput / buyButton: selectors for an amount box + Buy button, tried before the
@@ -26,6 +31,8 @@
     padre: {
       label: 'Padre',
       home: 'https://trade.padre.gg/trenches',
+      presetScope: '.MuiPaper-root:has(> [data-floating-widget-header])',
+      presetLabel: 'Buy',
       amountInput: [],
       buyButton: [],
     },

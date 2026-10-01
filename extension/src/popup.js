@@ -16,7 +16,7 @@
     routes.appendChild(b);
   }
 
-  for (const key of ['dryRun', 'confirm']) {
+  for (const key of ['dryRun', 'confirm', 'matchByPosition']) {
     $(key).checked = settings[key];
     $(key).addEventListener('change', () => chrome.storage.sync.set({ [key]: $(key).checked }));
   }
