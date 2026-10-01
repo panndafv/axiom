@@ -129,23 +129,28 @@
     if (unit && unit !== 'SOL') return toast('error', `Switch Axiom's Buy unit to SOL first (it is ${unit}).`);
 
     try {
-      toast('pending', 'Finding token address…');
-      const { mint } = await resolveToken();
-      if (settings.confirm && !window.confirm(`Buy ${amount} SOL of ${mint} through ${name}?`)) {
+      const pair = pairFromUrl();
+      if (!pair) throw new Error('Open a token page on Axiom first (axiom.trade/meme/…).');
+      let mint = null;
+      if (settings[`${route}Url`].includes('{mint}')) {
+        toast('pending', 'Finding token address…');
+        mint = await resolveMint(pair);
+      }
+      if (settings.confirm && !window.confirm(`Buy ${amount} SOL of ${mint ?? pair} through ${name}?`)) {
         return toast('info', 'Cancelled.');
       }
       toast('pending', `${settings.dryRun ? 'TEST: ' : ''}Buying ${amount} SOL through ${name}…`);
-      const res = await send({ type: 'tr-buy', route, amount, index, mint });
+      const res = await send({ type: 'tr-buy', route, amount, index, pair, mint });
       toast(res?.ok ? 'ok' : 'error', res?.message || 'No response from the extension.');
     } catch (err) {
       toast('error', err.message);
     }
   }
 
-  // Axiom's URL holds the pair (pool) address; Padre and GMGN need the token mint.
-  async function resolveToken() {
-    const pair = location.pathname.match(new RegExp(`/meme/(${B58})`))?.[1];
-    if (!pair) throw new Error('Open a token page on Axiom first (axiom.trade/meme/…).');
+  // Axiom's URL holds the pair (pool) address. Padre takes that too; GMGN needs the token mint.
+  const pairFromUrl = () => location.pathname.match(new RegExp(`/meme/(${B58})`))?.[1];
+
+  async function resolveMint(pair) {
     if (tokenCache.has(pair)) return tokenCache.get(pair);
 
     let mint = await send({ type: 'tr-resolve', pair }).catch(() => null);
@@ -162,9 +167,8 @@
     }
     if (!mint) throw new Error("Could not find this token's contract address.");
 
-    const token = { pair, mint };
-    tokenCache.set(pair, token);
-    return token;
+    tokenCache.set(pair, mint);
+    return mint;
   }
 
   // ---------- shortcuts ----------

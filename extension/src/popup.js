@@ -26,7 +26,7 @@
     input.value = settings[key];
     input.addEventListener('change', () => {
       const value = input.value.trim();
-      const ok = value.startsWith('https://') && value.includes('{mint}');
+      const ok = value.startsWith('https://') && /\{(mint|pair)\}/.test(value);
       input.classList.toggle('bad', !ok);
       if (ok) chrome.storage.sync.set({ [key]: value });
     });

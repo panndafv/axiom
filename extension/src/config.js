@@ -16,7 +16,8 @@
     // When a terminal has no preset with the clicked amount, click its preset in the same
     // position as the Axiom button instead (e.g. Axiom 0.0001 -> Padre 0.001).
     matchByPosition: false,
-    padreUrl: 'https://trade.padre.gg/trade/solana/{mint}',
+    // {pair} = the pool address in Axiom's URL, {mint} = the token's contract address.
+    padreUrl: 'https://trade.padre.gg/trade/solana/{pair}',
     gmgnUrl: 'https://gmgn.ai/sol/token/{mint}',
   };
 

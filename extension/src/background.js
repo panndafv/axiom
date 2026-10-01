@@ -36,10 +36,10 @@ async function resolveMint({ pair }) {
   return null;
 }
 
-async function buy({ route, amount, index, mint }) {
+async function buy({ route, amount, index, pair, mint }) {
   if (!TR.SITES[route]) throw new Error(`Unknown terminal: ${route}`);
   const settings = await TR.getSettings();
-  const url = settings[`${route}Url`].replaceAll('{mint}', mint);
+  const url = settings[`${route}Url`].replaceAll('{pair}', pair).replaceAll('{mint}', mint);
   const { tabId, stale } = await terminalTab(route, url);
   await whenReady(tabId, stale);
   const res = await chrome.tabs.sendMessage(tabId, {

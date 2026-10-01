@@ -47,8 +47,9 @@ Test mode off in the popup. Start with tiny amounts (e.g. 0.0001 SOL).
 ## How it works
 
 1. `src/axiom.js` intercepts clicks on Instant Trade's green buy presets before Axiom sees them.
-2. It gets the token's mint address: DexScreener maps Axiom's pair address to the mint, and if that
-   fails it reads pump.fun/Solscan links on the page.
+2. Padre opens straight from the pool (pair) address in Axiom's URL. GMGN needs the token's mint
+   address: DexScreener maps the pair to the mint, and if that fails the extension reads pump.fun/Solscan
+   links on the page.
 3. `src/background.js` opens (or reuses) a dedicated pinned Padre/GMGN tab on that token's page.
 4. `src/terminal-buyer.js` runs inside that tab. It clicks the matching buy preset (Padre/GMGN), or types
    the amount into the amount box and presses Buy, then reports the site's own success/error message back.
