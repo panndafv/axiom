@@ -17,8 +17,11 @@
     gmgnUrl: 'https://gmgn.ai/sol/token/{mint}',
   };
 
-  // amountInput / buyButton: CSS selectors tried before the text-based
-  // heuristics in terminal-buyer.js. Fill these in once we have each site's HTML.
+  // presetBuy:        the site's one-click buy amount buttons (clicked when one matches the amount).
+  // panelRoot:        the panel holding those presets.
+  // currencySelected: the highlighted "pay with" option in that panel; currencySol must match inside it.
+  // amountInput / buyButton: selectors for an amount box + Buy button, tried before the
+  //                   text-based heuristics in terminal-buyer.js.
   TR.SITES = {
     padre: {
       label: 'Padre',
@@ -29,6 +32,11 @@
     gmgn: {
       label: 'GMGN',
       home: 'https://gmgn.ai/trade?chain=sol',
+      presetBuy:
+        '[data-testid="instant_trade_buy"] [data-sentry-component="BtnItem"] > div, [data-testid="instant_trade_buy"] .cursor-pointer.border',
+      panelRoot: '[data-sentry-component="CustomRndView"]',
+      currencySelected: '[data-sentry-component="CurrencySwitcher"] > .bg-toggle-highlight-200',
+      currencySol: 'img[data-icon*="Solana" i]',
       amountInput: [],
       buyButton: [],
     },

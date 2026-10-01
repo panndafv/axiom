@@ -27,7 +27,51 @@
   });
 
   async function placeOrder({ amount, dryRun }) {
-    let form = await waitFor(findBuyForm, 20000, 'Buy box');
+    // A matching one-click preset wins; otherwise use an amount box + Buy button.
+    const find = () => {
+      const preset = findPreset(amount);
+      if (preset?.kind === 'preset') return preset;
+      const form = findBuyForm();
+      return form ? { kind: 'form', ...form } : preset;
+    };
+    let hit = await waitFor(find, 20000, 'Buy panel');
+    if (hit.kind === 'nopreset') {
+      // Give the rest of the page a moment to render a buy form before giving up.
+      hit = await waitFor(() => {
+        const h = find();
+        return h && h.kind !== 'nopreset' ? h : null;
+      }, 3000, 'Buy form').catch(() => hit);
+    }
+    if (hit.kind === 'nopreset') {
+      throw new Error(
+        `${site.label} has no ${amount} SOL preset (it has ${hit.presets.join(', ')}). ` +
+          `Add one in ${site.label}'s Instant Trade panel, or click a matching amount on Axiom.`,
+      );
+    }
+    return hit.kind === 'preset' ? clickPreset(hit.button, amount, dryRun) : fillForm(hit, amount, dryRun);
+  }
+
+  async function clickPreset(button, amount, dryRun) {
+    checkCurrency(button);
+    if (dryRun) {
+      mark(button);
+      return { ok: true, message: `TEST MODE: found the ${amount} SOL preset on ${site.label} but did not click it.` };
+    }
+    const outcome = watchOutcome(10000);
+    press(button);
+    return outcome;
+  }
+
+  // Refuse to buy if the panel is set to pay with USDC/USD1 instead of SOL.
+  function checkCurrency(button) {
+    if (!site.currencySelected) return;
+    const selected = (button.closest(site.panelRoot) ?? document).querySelector(site.currencySelected);
+    if (selected && !selected.querySelector(site.currencySol)) {
+      throw new Error(`${site.label}'s Instant Trade is set to pay with a stablecoin. Switch it to SOL in the ${site.label} tab.`);
+    }
+  }
+
+  async function fillForm(form, amount, dryRun) {
     const value = String(amount);
     setValue(form.input, value);
     await tick();
@@ -48,7 +92,17 @@
     return outcome;
   }
 
-  // ---------- finding the buy form ----------
+  // ---------- finding the buy controls ----------
+
+  // { kind: 'preset', button } when a preset matches, { kind: 'nopreset', presets } when
+  // presets exist but none match, null when the site shows no presets.
+  function findPreset(amount) {
+    if (!site.presetBuy) return null;
+    const buttons = [...document.querySelectorAll(site.presetBuy)].filter(visible);
+    if (!buttons.length) return null;
+    const button = buttons.find((b) => Number(text(b)) === amount);
+    return button ? { kind: 'preset', button } : { kind: 'nopreset', presets: buttons.map(text) };
+  }
 
   function bySelectors(list) {
     for (const sel of list) {
@@ -180,7 +234,7 @@
   function watchOutcome(timeout) {
     const OK = /success|bought|confirmed|submitted|sent/i;
     const BAD = /fail|error|insufficient|rejected|not enough|expired|exceeds/i;
-    const TOAST = '[role="alert"], [role="status"], [class*="toast" i], [class*="notif" i], [class*="message" i], [class*="snackbar" i]';
+    const TOAST = '[data-sonner-toast], .Toastify__toast, [role="alert"], [role="status"], [class*="toast" i], [class*="notif" i], [class*="message" i], [class*="snackbar" i]';
     return new Promise((resolve) => {
       const finish = (result) => {
         obs.disconnect();

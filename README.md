@@ -23,6 +23,15 @@ logged into in your browser.
   sends the buy to that terminal instead of Axiom. A message in the bottom-right corner shows the result.
 - Sells always go through Axiom as normal.
 
+### GMGN
+
+GMGN buys use GMGN's **Instant Trade** panel. The extension clicks the GMGN preset with the same
+amount as the Axiom button you clicked. So:
+
+- Keep GMGN's Instant Trade panel open in the pinned GMGN tab.
+- Give GMGN the same buy presets as Axiom. If GMGN has no matching preset, nothing is bought and you get an error that lists GMGN's presets.
+- GMGN's panel must be set to pay with **SOL** (not USDC/USD1). Otherwise the extension refuses to buy.
+
 ### Test mode (on by default)
 
 While **Test mode** is on, the extension opens the token on Padre/GMGN and types the amount,
@@ -35,8 +44,8 @@ Test mode off in the popup. Start with tiny amounts (e.g. 0.0001 SOL).
 2. It gets the token's mint address: DexScreener maps Axiom's pair address to the mint, and if that
    fails it reads pump.fun/Solscan links on the page.
 3. `src/background.js` opens (or reuses) a dedicated pinned Padre/GMGN tab on that token's page.
-4. `src/terminal-buyer.js` runs inside that tab: it finds the amount box and Buy button,
-   types the amount, presses Buy and reports the site's own success/error message back.
+4. `src/terminal-buyer.js` runs inside that tab. It clicks the matching buy preset (GMGN), or types
+   the amount into the amount box and presses Buy, then reports the site's own success/error message back.
 
 ## Known limits
 

@@ -113,8 +113,9 @@
   }
 
   async function routeBuy(btn) {
+    // Guard against an accidental double click sending two orders.
     const now = Date.now();
-    if (now - lastFire < 500) return;
+    if (now - lastFire < 400) return toast('info', 'Ignored a double click. Click again to place another order.');
     lastFire = now;
 
     const route = settings.route;
