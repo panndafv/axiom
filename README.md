@@ -59,6 +59,11 @@ Test mode off in the popup. Start with tiny amounts (e.g. 0.0001 SOL).
 - Each terminal spends from **its own wallet** unless you imported the same wallet into all three.
   Slippage, fees and MEV settings come from that terminal's own settings.
 - Only Instant Trade's preset buy buttons are routed. Advanced-mode buys and Pulse row quick-buys still go through Axiom.
-- The Padre/GMGN tab must load the token page first, so routed buys are slower than native Axiom buys (a few seconds).
+- Speed: when you open a token on Axiom, the selected terminal's pinned tab preloads that token, so a
+  routed buy is just a click. If you click before the preload finishes (e.g. right after switching
+  token or terminal), the buy waits for the page and is never placed on the previous token.
+  Axiom shows "buy sent" with the time it took, then the site's own confirmation or error.
+- Chrome's Memory Saver can unload the pinned tabs. The extension asks Chrome to keep them loaded; you
+  can also add trade.padre.gg and gmgn.ai under "Always keep these sites active" in chrome://settings/performance.
 - Padre and GMGN have no official API for this. If they change their pages, the selectors in
   `src/config.js` (`TR.SITES`) may need updating.

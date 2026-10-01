@@ -13,7 +13,7 @@
   ];
 
   let settings = { ...TR.DEFAULTS };
-  let lastFire = 0;
+  let lastFire = { btn: null, at: 0 };
   const tokenCache = new Map();
 
   // ---------- settings ----------
@@ -113,10 +113,13 @@
   }
 
   async function routeBuy(btn) {
-    // Guard against an accidental double click sending two orders.
+    const started = performance.now();
+    // Guard against an accidental double click on the same button sending two orders.
     const now = Date.now();
-    if (now - lastFire < 400) return toast('info', 'Ignored a double click. Click again to place another order.');
-    lastFire = now;
+    if (lastFire.btn === btn && now - lastFire.at < 400) {
+      return toast('info', 'Ignored a double click. Click again to place another order.');
+    }
+    lastFire = { btn, at: now };
 
     const route = settings.route;
     const name = TR.TERMINALS[route].label;
@@ -141,7 +144,8 @@
       }
       toast('pending', `${settings.dryRun ? 'TEST: ' : ''}Buying ${amount} SOL through ${name}…`);
       const res = await send({ type: 'tr-buy', route, amount, index, pair, mint });
-      toast(res?.ok ? 'ok' : 'error', res?.message || 'No response from the extension.');
+      const secs = ((performance.now() - started) / 1000).toFixed(2);
+      toast(res?.ok ? 'ok' : 'error', `${res?.message || 'No response from the extension.'} (${secs}s)`);
     } catch (err) {
       toast('error', err.message);
     }
@@ -170,6 +174,31 @@
     tokenCache.set(pair, mint);
     return mint;
   }
+
+  // ---------- preloading ----------
+
+  // Load the current token in the selected terminal's tab as soon as it is opened on Axiom,
+  // so a buy only has to click. Axiom changes pages without reloading, so check every 300ms.
+  let preparedKey = '';
+  async function prepare() {
+    const route = settings.route;
+    const pair = pairFromUrl();
+    const key = `${route}:${pair}`;
+    if (!pair || route === 'axiom' || key === preparedKey) return;
+    preparedKey = key;
+    try {
+      const mint = settings[`${route}Url`].includes('{mint}') ? await resolveMint(pair) : null;
+      await send({ type: 'tr-prepare', route, pair, mint });
+    } catch {
+      // A buy on this token will report the problem.
+    }
+  }
+  setInterval(prepare, 300);
+
+  // The site's own confirmation or error, which arrives after "buy sent".
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === 'tr-outcome') toast(msg.ok ? 'ok' : 'error', msg.message);
+  });
 
   // ---------- shortcuts ----------
 

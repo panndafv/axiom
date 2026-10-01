@@ -6,15 +6,19 @@
 
   const TR = globalThis.TR;
   const site = TR.SITES[location.hostname.endsWith('gmgn.ai') ? 'gmgn' : 'padre'];
-  const pageId = Math.random().toString(36).slice(2);
   let busy = false;
 
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg?.type === 'tr-ping') {
-      reply({ pageId, href: location.href });
+      reply({ href: location.href });
       return false;
     }
     if (msg?.type !== 'tr-exec') return false;
+    // Never buy on a page left over from the previous token.
+    if (!location.href.includes(msg.address)) {
+      reply({ ok: false, message: `${site.label} tab is on a different token. Nothing was bought; try again.` });
+      return false;
+    }
     if (busy) {
       reply({ ok: false, message: `${site.label}: previous order is still in progress.` });
       return false;
@@ -26,7 +30,7 @@
     return true;
   });
 
-  async function placeOrder({ amount, index, dryRun, matchByPosition }) {
+  async function placeOrder({ orderId, amount, index, dryRun, matchByPosition }) {
     // A matching one-click preset wins; otherwise use an amount box + Buy button.
     const find = () => {
       const preset = findPreset(amount, matchByPosition ? index : -1);
@@ -48,10 +52,19 @@
           `Add one on ${site.label}, click a matching amount on Axiom, or turn on "same position" in the extension popup.`,
       );
     }
-    return hit.kind === 'preset' ? clickPreset(hit, amount, dryRun) : fillForm(hit, amount, dryRun);
+    return hit.kind === 'preset' ? clickPreset(hit, amount, dryRun, orderId) : fillForm(hit, amount, dryRun, orderId);
   }
 
-  async function clickPreset({ button, byPosition }, amount, dryRun) {
+  // Press, then report "sent" right away; the site's own confirmation follows as a second message.
+  function pressAndReport(button, orderId, sent) {
+    watchOutcome(10000).then((outcome) => {
+      if (outcome) chrome.runtime.sendMessage({ type: 'tr-outcome', orderId, ...outcome }).catch(() => {});
+    });
+    press(button);
+    return { ok: true, message: sent };
+  }
+
+  async function clickPreset({ button, byPosition }, amount, dryRun, orderId) {
     checkCurrency(button);
     const value = text(button);
     const what = byPosition
@@ -61,11 +74,8 @@
       mark(button);
       return { ok: true, message: `TEST MODE: found ${what} but did not click it.` };
     }
-    const outcome = watchOutcome(10000);
-    press(button);
-    const result = await outcome;
-    if (byPosition) result.message = `Bought ${value} SOL, not ${amount}. ${result.message}`;
-    return result;
+    const note = byPosition ? ` (not ${amount}: same position)` : '';
+    return pressAndReport(button, orderId, `${site.label}: buy sent, ${value} SOL${note}.`);
   }
 
   // Refuse to buy if the panel is set to pay with USDC/USD1 instead of SOL.
@@ -77,7 +87,7 @@
     }
   }
 
-  async function fillForm(form, amount, dryRun) {
+  async function fillForm(form, amount, dryRun, orderId) {
     const value = String(amount);
     setValue(form.input, value);
     await tick();
@@ -93,9 +103,7 @@
     }
 
     const button = await waitFor(() => (form.button.disabled ? null : form.button), 3000, 'Enabled Buy button');
-    const outcome = watchOutcome(10000);
-    press(button);
-    return outcome;
+    return pressAndReport(button, orderId, `${site.label}: buy sent, ${value} SOL.`);
   }
 
   // ---------- finding the buy controls ----------
@@ -256,7 +264,7 @@
     });
   }
 
-  // Read the site's own toast/notification after pressing Buy.
+  // The site's own toast after pressing Buy, or null if none appears in time.
   function watchOutcome(timeout) {
     const OK = /success|bought|confirmed|submitted|sent/i;
     const BAD = /fail|error|insufficient|rejected|not enough|expired|exceeds/i;
@@ -278,10 +286,7 @@
           }
         }
       });
-      const timer = setTimeout(
-        () => finish({ ok: true, message: `Pressed Buy on ${site.label}. No confirmation seen, so check the ${site.label} tab.` }),
-        timeout,
-      );
+      const timer = setTimeout(() => finish(null), timeout);
       obs.observe(document.documentElement, { childList: true, subtree: true });
     });
   }

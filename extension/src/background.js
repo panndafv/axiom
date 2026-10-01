@@ -11,12 +11,17 @@ const QUOTES = new Set([
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-  const handler = { 'tr-buy': buy, 'tr-resolve': resolveMint, 'tr-warm': warmTabs }[msg?.type];
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  const handlers = { 'tr-buy': buy, 'tr-prepare': prepare, 'tr-outcome': relayOutcome, 'tr-resolve': resolveMint, 'tr-warm': warmTabs };
+  const handler = handlers[msg?.type];
   if (!handler) return false;
-  handler(msg).then(reply, (err) => reply({ ok: false, message: err?.message || String(err) }));
+  handler(msg, sender).then(reply, (err) => reply({ ok: false, message: err?.message || String(err) }));
   return true;
 });
+
+// Which Axiom tab placed each order, so the site's confirmation can be shown there.
+const orderTabs = new Map();
+let nextOrderId = 1;
 
 // Pair (pool) address -> token mint, via DexScreener. Returns null when unknown.
 async function resolveMint({ pair }) {
@@ -36,52 +41,87 @@ async function resolveMint({ pair }) {
   return null;
 }
 
-async function buy({ route, amount, index, pair, mint }) {
+// The token page URL for a terminal, and the address that must appear in it.
+async function target(route, pair, mint) {
   if (!TR.SITES[route]) throw new Error(`Unknown terminal: ${route}`);
   const settings = await TR.getSettings();
-  const url = settings[`${route}Url`].replaceAll('{pair}', pair).replaceAll('{mint}', mint);
-  const { tabId, stale } = await terminalTab(route, url);
-  await whenReady(tabId, stale);
+  const template = settings[`${route}Url`];
+  const address = template.includes('{mint}') ? mint : pair;
+  if (!address) throw new Error('Missing token address.');
+  return { settings, address, url: template.replaceAll('{pair}', pair).replaceAll('{mint}', mint) };
+}
+
+// Called when you open a token on Axiom: load it in the terminal tab before you click Buy.
+async function prepare({ route, pair, mint }) {
+  const { url, address } = await target(route, pair, mint);
+  await terminalTab(route, url, address);
+  return { ok: true };
+}
+
+async function buy({ route, amount, index, pair, mint }, sender) {
+  const { settings, url, address } = await target(route, pair, mint);
+  const tabId = await terminalTab(route, url, address);
+  await whenReady(tabId, address);
+  const orderId = nextOrderId++;
+  if (sender.tab) orderTabs.set(orderId, sender.tab.id);
   const res = await chrome.tabs.sendMessage(tabId, {
     type: 'tr-exec',
+    orderId,
+    address,
     amount,
     index,
-    mint,
     dryRun: settings.dryRun,
     matchByPosition: settings.matchByPosition,
   });
   return res ?? { ok: false, message: `${TR.SITES[route].label} tab did not answer.` };
 }
 
+// The site's own success/error message, which arrives after the buy was sent.
+async function relayOutcome(msg) {
+  const tabId = orderTabs.get(msg.orderId);
+  orderTabs.delete(msg.orderId);
+  if (tabId != null) await chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+  return { ok: true };
+}
+
+// Prepare and buy can race; run one tab operation per terminal at a time.
+const tabLocks = {};
+function withTabLock(route, fn) {
+  const run = (tabLocks[route] ?? Promise.resolve()).then(fn, fn);
+  tabLocks[route] = run.catch(() => {});
+  return run;
+}
+
 // One dedicated pinned tab per terminal, so the extension never hijacks a tab you are using.
-async function terminalTab(route, url) {
-  const tabKey = `tab_${route}`;
-  const urlKey = `url_${route}`;
-  const saved = await chrome.storage.session.get([tabKey, urlKey]);
-  const tab = saved[tabKey] != null ? await chrome.tabs.get(saved[tabKey]).catch(() => null) : null;
+// Navigates it to `url` unless it is already on (or loading) the token `address`.
+function terminalTab(route, url, address) {
+  return withTabLock(route, async () => {
+    const tabKey = `tab_${route}`;
+    const saved = await chrome.storage.session.get(tabKey);
+    const tab = saved[tabKey] != null ? await chrome.tabs.get(saved[tabKey]).catch(() => null) : null;
 
-  if (!tab) {
-    const created = await chrome.tabs.create({ url, active: false, pinned: true });
-    await chrome.storage.session.set({ [tabKey]: created.id, [urlKey]: url });
-    return { tabId: created.id, stale: null };
-  }
-  if (saved[urlKey] === url) return { tabId: tab.id, stale: null };
-
-  const stale = (await ping(tab.id))?.pageId ?? null;
-  await chrome.tabs.update(tab.id, { url });
-  await chrome.storage.session.set({ [urlKey]: url });
-  return { tabId: tab.id, stale };
+    if (!tab) {
+      const created = await chrome.tabs.create({ url, active: false, pinned: true });
+      await chrome.storage.session.set({ [tabKey]: created.id });
+      // Memory Saver would otherwise unload the tab, forcing a full reload on the next buy.
+      await chrome.tabs.update(created.id, { autoDiscardable: false }).catch(() => {});
+      return created.id;
+    }
+    if (!(tab.pendingUrl || tab.url || '').includes(address)) await chrome.tabs.update(tab.id, { url });
+    if (tab.autoDiscardable) await chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => {});
+    return tab.id;
+  });
 }
 
 const ping = (tabId) => chrome.tabs.sendMessage(tabId, { type: 'tr-ping' }).catch(() => null);
 
-// Wait until the buyer script answers from the new page (not the page we navigated away from).
-async function whenReady(tabId, stale) {
+// Wait until the buyer script answers from the page for this token, never the previous one.
+async function whenReady(tabId, address) {
   const end = Date.now() + 25000;
   while (Date.now() < end) {
     const pong = await ping(tabId);
-    if (pong && pong.pageId !== stale) return;
-    await sleep(150);
+    if (pong?.href.includes(address)) return;
+    await sleep(100);
   }
   throw new Error('Terminal tab did not load in time. Is it open and logged in?');
 }
@@ -95,7 +135,8 @@ async function warmTabs() {
     const tab = saved[tabKey] != null ? await chrome.tabs.get(saved[tabKey]).catch(() => null) : null;
     if (tab) continue;
     const created = await chrome.tabs.create({ url: site.home, active: false, pinned: true });
-    await chrome.storage.session.set({ [tabKey]: created.id, [`url_${route}`]: site.home });
+    await chrome.storage.session.set({ [tabKey]: created.id });
+    await chrome.tabs.update(created.id, { autoDiscardable: false }).catch(() => {});
     opened.push(site.label);
   }
   return { ok: true, message: opened.length ? `Opened ${opened.join(' and ')}.` : 'Terminal tabs are already open.' };
