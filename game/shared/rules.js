@@ -62,6 +62,8 @@ export const RODS = [
   { id: 'bonecaster', name: 'Bonecaster', price: 1_200, luck: 16, reel: 1.08, tolerance: 1.1,  color: '#e6dccb', tip: '#ff6a3d', glow: null,      blurb: 'Pale as driftbone.' },
   { id: 'sunset',     name: 'Sunset',     price: 3_500, luck: 30, reel: 1.14, tolerance: 1.18, color: '#ffae3d', tip: '#ffd36b', glow: '#ffb347', blurb: 'Glowing golden embers.' },
   { id: 'tidecaster', name: 'Tidecaster', price: 8_000, luck: 40, reel: 1.2,  tolerance: 1.25, color: '#3ad6c8', tip: '#9ffcff', glow: '#4ff2e4', blurb: 'Shimmering deep-sea cyan.' },
+  // Not for sale: it leans against the lamp room at the top of the lighthouse for whoever climbs up.
+  { id: 'beacon',     name: 'Beacon',     price: null,  luck: 50, reel: 1.22, tolerance: 1.28, color: '#fff1c2', tip: '#ffe27a', glow: '#ffe9a0', hidden: true, blurb: 'Found at the top of the lighthouse.' },
 ];
 
 export const RODS_BY_ID = Object.fromEntries(RODS.map((r) => [r.id, r]));
@@ -86,6 +88,31 @@ export const OUTFITS = [
 ];
 
 export const OUTFITS_BY_ID = Object.fromEntries(OUTFITS.map((o) => [o.id, o]));
+
+// Every angler gets one of these at random the first time they play, so a busy pier is easy to
+// tell apart. Hair is always yours; the shirt shows on the default Deckhand outfit.
+export const SHIRT_COLORS = ['#1f6c75', '#b8433a', '#26408b', '#2f6b3a', '#c9952b', '#6a3f8f', '#d0672e', '#c45a86', '#3f86b8', '#3a3f47'];
+export const HAIR_COLORS = ['#d8662a', '#5a3a22', '#1f1a17', '#e6c26a', '#cfc8bb'];
+
+export function randomLook(rng = cryptoRng) {
+  return { shirt: Math.floor(rng() * SHIRT_COLORS.length), hair: Math.floor(rng() * HAIR_COLORS.length) };
+}
+
+export function isLook(look) {
+  return Number.isInteger(look?.shirt) && look.shirt >= 0 && look.shirt < SHIRT_COLORS.length
+    && Number.isInteger(look?.hair) && look.hair >= 0 && look.hair < HAIR_COLORS.length;
+}
+
+// Colours to draw an angler with: the outfit, plus their own hair (and shirt, on the Deckhand).
+export function lookColors(outfitId, look) {
+  const outfit = (Object.hasOwn(OUTFITS_BY_ID, outfitId) ? OUTFITS_BY_ID[outfitId] : OUTFITS_BY_ID.deckhand).colors;
+  if (!isLook(look)) return outfit;
+  return {
+    ...outfit,
+    hair: HAIR_COLORS[look.hair],
+    shirt: outfitId === 'deckhand' ? SHIRT_COLORS[look.shirt] : outfit.shirt,
+  };
+}
 
 export const SHOP = {
   rod: RODS_BY_ID,

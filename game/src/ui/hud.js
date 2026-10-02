@@ -145,7 +145,7 @@ export function createHud(app) {
   edgeLabel.style.display = 'none';
   labelsLayer.append(edgeLabel);
 
-  function updateLabels(camera, near, visible) {
+  function updateLabels(camera, near, visible, level = 'deck') {
     ensureLabels();
     const w = window.innerWidth, hgt = window.innerHeight;
     if (visible && near?.id === 'edge') {
@@ -161,9 +161,9 @@ export function createHud(app) {
     }
     for (const it of app.world.interactables) {
       const el = labels.get(it.id);
-      if (!visible) { el.style.display = 'none'; continue; }
+      if (!visible || !app.world.labelVisible(it, level, near)) { el.style.display = 'none'; continue; }
       tmp.copy(it.pos);
-      tmp.y += 2.7;
+      tmp.y += it.labelY ?? 2.7;
       const dist = tmp.distanceTo(camera.position);
       tmp.project(camera);
       if (tmp.z > 1 || dist > 60) { el.style.display = 'none'; continue; }

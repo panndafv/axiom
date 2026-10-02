@@ -3,6 +3,7 @@
 // goes through the HTTP API, so nothing here needs to be trusted.
 //
 // Client → server: {t:'hello', token?, guest?, outfit, rod, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
+//                  (mode: 0 walking, 1 fishing, 2 sitting, 3 up the lighthouse)
 //                  {t:'look', outfit, rod}
 // Server → client: {t:'welcome', id, lobby, size, players:[...]}, {t:'join', p}, {t:'leave', id},
 //                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, outfit, rod},
@@ -11,7 +12,7 @@
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { walletForToken } from './auth.js';
-import { RODS_BY_ID, OUTFITS_BY_ID, SPECIES_BY_ID, RARITIES } from '../shared/rules.js';
+import { RODS_BY_ID, OUTFITS_BY_ID, SPECIES_BY_ID, RARITIES, isLook, randomLook } from '../shared/rules.js';
 
 export const LOBBY_SIZE = 25;
 const TICK_MS = 125;
@@ -28,7 +29,7 @@ const finite = (n, lim) => typeof n === 'number' && Number.isFinite(n) && Math.a
 function cleanState(s) {
   if (!Array.isArray(s) || s.length < 5 || s.length > 7) return null;
   const [x, z, f, m, sp, bx, bz] = s;
-  if (!finite(x, 500) || !finite(z, 500) || !finite(f, 20) || ![0, 1, 2].includes(m) || !finite(sp, 1)) return null;
+  if (!finite(x, 500) || !finite(z, 500) || !finite(f, 20) || ![0, 1, 2, 3].includes(m) || !finite(sp, 1)) return null;
   const out = [round(x), round(z), round(f), m, round(sp)];
   if (finite(bx, 500) && finite(bz, 500)) out.push(round(bx), round(bz));
   return out;
@@ -36,7 +37,7 @@ function cleanState(s) {
 const round = (n) => Math.round(n * 100) / 100;
 
 function publicPlayer(p) {
-  return { id: p.id, name: p.name, wallet: !!p.wallet, outfit: p.outfit, rod: p.rod, s: p.s };
+  return { id: p.id, name: p.name, wallet: !!p.wallet, outfit: p.outfit, rod: p.rod, look: p.look, s: p.s };
 }
 
 function send(p, msg) {
@@ -67,6 +68,7 @@ function join(ws, hello) {
     name: wallet ? short(wallet) : `guest-${guestTag || Math.floor(Math.random() * 9000 + 1000)}`,
     outfit: Object.hasOwn(OUTFITS_BY_ID, hello.outfit) ? hello.outfit : 'deckhand',
     rod: Object.hasOwn(RODS_BY_ID, hello.rod) ? hello.rod : 'driftwood',
+    look: isLook(hello.look) ? { shirt: hello.look.shirt, hair: hello.look.hair } : randomLook(),
     s: cleanState(hello.s) || [0, 3.5, Math.PI, 0, 0],
     dirty: false,
     msgs: 0,
@@ -102,7 +104,8 @@ function onMessage(p, raw) {
   } else if (msg?.t === 'look') {
     if (Object.hasOwn(OUTFITS_BY_ID, msg.outfit)) p.outfit = msg.outfit;
     if (Object.hasOwn(RODS_BY_ID, msg.rod)) p.rod = msg.rod;
-    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, outfit: p.outfit, rod: p.rod }, p);
+    if (isLook(msg.look)) p.look = { shirt: msg.look.shirt, hair: msg.look.hair };
+    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, outfit: p.outfit, rod: p.rod, look: p.look }, p);
   }
 }
 
@@ -126,6 +129,15 @@ export function announceCatch(wallet, fish) {
       if (p.wallet === wallet) broadcast(lobby, { t: 'shout', name: p.name, sp: sp.id, kg: fish.kg }, p);
     }
   }
+}
+
+// The Beacon rod can only be taken from the top of the lighthouse, so the API asks whether one of
+// this wallet's sockets has its player up there.
+export function isUpTheLighthouse(wallet) {
+  for (const lobby of lobbies.values()) {
+    for (const p of lobby.values()) if (wallet && p.wallet === wallet && p.s[3] === 3) return true;
+  }
+  return false;
 }
 
 export function stats() {

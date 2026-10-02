@@ -1,18 +1,18 @@
 import * as THREE from 'three';
 import { createCharacter } from '../scene/characters.js';
 import { DECK_Y } from '../scene/world.js';
-import { OUTFITS_BY_ID, RODS_BY_ID } from '../../shared/rules.js';
+import { RODS_BY_ID, lookColors } from '../../shared/rules.js';
 
 // The player's angler plus the camera that follows it.
 // Camera modes: 'title' (slow orbit), 'walk' (third/first person), 'fish' (behind the angler at a
 // fishing spot), 'sit' (watching the sunset from the bench).
 
 const VIEWS = [
-  { dist: 5, lift: 1.45 },
-  { dist: 8.5, lift: 1.8 },
-  { dist: 0, lift: 1.45 }, // first person
+  { dist: 4.6, lift: 1.3 },
+  { dist: 8, lift: 1.65 },
+  { dist: 0, lift: 1.3 }, // first person
 ];
-const RADIUS = 0.25; // how close the angler gets to props
+const RADIUS = 0.22; // how close the angler gets to props
 
 const tmpV = new THREE.Vector3();
 const tmpT = new THREE.Vector3();
@@ -35,6 +35,8 @@ export function createPlayer(scene, camera, world, input, settings) {
     camPitch: 0.38,
     view: 0,
     mode: 'title',
+    level: 'deck', // 'deck', or 'top' when up the lighthouse
+    camClose: false, // the camera is pushed right up to the angler, so hide them
     speed: 0,
     fishSpot: null,
     sitSpot: null,
@@ -44,9 +46,8 @@ export function createPlayer(scene, camera, world, input, settings) {
   const camPos = new THREE.Vector3(0, 20, 36);
   camera.position.copy(camPos);
 
-  function setOutfit(id) {
-    const o = OUTFITS_BY_ID[id] || OUTFITS_BY_ID.deckhand;
-    char.setOutfit(o.colors);
+  function setOutfit(id, look) {
+    char.setOutfit(lookColors(id, look));
   }
 
   function setRod(id) {
@@ -69,6 +70,7 @@ export function createPlayer(scene, camera, world, input, settings) {
     } else {
       char.rodOnBack();
       if (mode === 'walk' && opts.reset) {
+        state.level = 'deck';
         state.pos.copy(world.spawn.pos);
         state.facing = world.spawn.yaw;
         state.camYaw = 0;
@@ -87,6 +89,16 @@ export function createPlayer(scene, camera, world, input, settings) {
     state.view = (state.view + 1) % VIEWS.length;
     char.root.visible = !(state.mode === 'walk' && VIEWS[state.view].dist === 0);
     return state.view;
+  }
+
+  // up or down the lighthouse stairs
+  function climb(level) {
+    const end = world.stairs[level];
+    state.level = level;
+    state.pos.copy(end.pos);
+    state.facing = end.facing;
+    // at the top, swing the camera out a little so the walkway ahead isn't hidden behind you
+    state.camYaw = state.facing - Math.PI - (level === 'top' ? 0.4 : 0);
   }
 
   function tryMove(nx, nz) {
@@ -129,7 +141,12 @@ export function createPlayer(scene, camera, world, input, settings) {
       mx /= len; mz /= len;
       const v = 6 * state.speed * dt;
       const nx = state.pos.x + mx * v, nz = state.pos.z + mz * v;
-      if (tryMove(nx, nz)) { state.pos.x = nx; state.pos.z = nz; }
+      if (state.level === 'top') {
+        // the camera circles the lamp room with you, so W keeps walking you round the ring
+        const L = world.lighthouse, before = Math.atan2(state.pos.x - L.x, state.pos.z - L.z);
+        [state.pos.x, state.pos.z] = world.clampTop(nx, nz);
+        state.camYaw += dampAngle(0, Math.atan2(state.pos.x - L.x, state.pos.z - L.z) - before, 1);
+      } else if (tryMove(nx, nz)) { state.pos.x = nx; state.pos.z = nz; }
       else if (tryMove(nx, state.pos.z)) state.pos.x = nx;
       else if (tryMove(state.pos.x, nz)) state.pos.z = nz;
       state.facing = dampAngle(state.facing, Math.atan2(mx, mz), Math.min(1, dt * 12));
@@ -142,10 +159,26 @@ export function createPlayer(scene, camera, world, input, settings) {
   function nearestInteractable() {
     let best = null, bestD = Infinity;
     for (const it of world.interactables) {
+      if (!world.isAvailable(it, state.level)) continue;
       const d = Math.hypot(it.pos.x - state.pos.x, it.pos.z - state.pos.z);
       if (d < it.radius && d < bestD) { best = it; bestD = d; }
     }
-    return best || world.edgeSpot(state.pos.x, state.pos.z);
+    if (best || state.level !== 'deck') return best;
+    return world.edgeSpot(state.pos.x, state.pos.z);
+  }
+
+  // How far along head → camera the camera can go before it would be inside the lighthouse
+  // (1 = all the way). The tower on the deck, the lamp room and its roof at the top.
+  function towerReach(a, b) {
+    const L = world.lighthouse;
+    const hx = a.x - L.x, hz = a.z - L.z, dx = b.x - a.x, dz = b.z - a.z;
+    const R = state.level === 'top' ? Math.min(L.roofR, Math.hypot(hx, hz) - 0.04) : L.towerR;
+    const A = dx * dx + dz * dz, B = 2 * (hx * dx + hz * dz), C = hx * hx + hz * hz - R * R;
+    const disc = B * B - 4 * A * C;
+    if (A < 1e-6 || C <= 0 || disc <= 0) return 1;
+    const t = (-B - Math.sqrt(disc)) / (2 * A);
+    if (t <= 0 || t >= 1) return 1;
+    return Math.max(0, t - 0.15 / Math.sqrt(A));
   }
 
   function updateCamera(dt, t) {
@@ -171,9 +204,12 @@ export function createPlayer(scene, camera, world, input, settings) {
           Math.sin(state.camYaw) * Math.cos(state.camPitch),
           Math.sin(state.camPitch),
           Math.cos(state.camYaw) * Math.cos(state.camPitch),
-        ).multiplyScalar(v.dist).add(head);
+        ).multiplyScalar(state.level === 'top' ? Math.min(v.dist, 3.4) : v.dist).add(head); // keep close up the lighthouse
         tmpV.y = Math.max(tmpV.y, 0.6);
-        camPos.lerp(tmpV, 1 - Math.exp(-dt * 12));
+        const reach = towerReach(head, tmpV);
+        state.camClose = reach < 1 && tmpV.distanceTo(head) * reach < 0.9;
+        if (reach < 1) camPos.lerpVectors(head, tmpV, reach); // never behind the tower or in the lamp room
+        else camPos.lerp(tmpV, 1 - Math.exp(-dt * 12));
         camTarget.lerp(head, 1 - Math.exp(-dt * 16));
       }
     } else if (state.mode === 'fish') {
@@ -200,6 +236,7 @@ export function createPlayer(scene, camera, world, input, settings) {
     char,
     state,
     setMode,
+    climb,
     setOutfit,
     setRod,
     cycleView,
@@ -211,7 +248,7 @@ export function createPlayer(scene, camera, world, input, settings) {
       char.root.rotation.y = state.facing;
       const pose = state.mode === 'fish' ? 'fish' : state.mode === 'sit' ? 'sit' : 'walk';
       char.animate(dt, state.speed, pose, state.reel);
-      char.root.visible = !(state.mode === 'walk' && VIEWS[state.view].dist === 0);
+      char.root.visible = !(state.mode === 'walk' && (VIEWS[state.view].dist === 0 || state.camClose));
       updateCamera(dt, t);
     },
   };

@@ -4,7 +4,7 @@
 
 import {
   GAME, RARITIES, RODS_BY_ID, BAITS_BY_ID, SHOP, SPECIES_BY_ID,
-  rollSpecies, rollKg, fishValue, biteDelayMs, minReelMs, speciesPoolPct, speciesPayout, cryptoRng,
+  rollSpecies, rollKg, fishValue, biteDelayMs, minReelMs, speciesPoolPct, speciesPayout, cryptoRng, randomLook,
 } from './rules.js';
 
 export class GameError extends Error {
@@ -37,6 +37,7 @@ export function newProfile(id, now = Date.now()) {
     bait: null,       // bait on the hook, used up one per cast
     outfits: ['deckhand'],
     outfit: 'deckhand',
+    look: randomLook(), // { shirt, hair } colour picks, random per player
     storage: [],      // the backpack, GAME.storageMax fish
     nextFishId: 1,
     log: {},          // speciesId -> { n, maxKg, first }
@@ -173,6 +174,7 @@ export function buy(p, kind, id) {
   if (!item) throw new GameError('not_found', 'That is not in the shop.');
   if (kind === 'rod' && p.rods.includes(id)) throw new GameError('owned', 'You already own that rod.');
   if (kind === 'outfit' && p.outfits.includes(id)) throw new GameError('owned', 'You already own that outfit.');
+  if (item.price === null) throw new GameError('not_for_sale', 'That one is not for sale. It is hidden somewhere on the pier.');
   if (p.cash < item.price) throw new GameError('broke', `You need ${item.price - p.cash} more gold.`);
   p.cash -= item.price;
   if (kind === 'rod') {
@@ -186,6 +188,16 @@ export function buy(p, kind, id) {
     if (!p.bait) p.bait = id;
   }
   return { kind, id, cash: p.cash };
+}
+
+// Picks up a hidden rod (the Beacon at the top of the lighthouse). Free, once.
+export function find(p, rodId) {
+  const rod = Object.hasOwn(RODS_BY_ID, rodId) ? RODS_BY_ID[rodId] : null;
+  if (!rod?.hidden) throw new GameError('not_found', 'There is nothing to find here.');
+  if (p.rods.includes(rodId)) return { rod: rodId, already: true };
+  p.rods.push(rodId);
+  if (!p.cast) p.rod = rodId;
+  return { rod: rodId, already: false };
 }
 
 // id null takes the bait off the hook.
@@ -272,6 +284,7 @@ export function publicProfile(p, now = Date.now()) {
     bait: p.bait,
     outfits: p.outfits,
     outfit: p.outfit,
+    look: p.look,
     luck: currentLuck(p),
     storage: p.storage,
     log: p.log,

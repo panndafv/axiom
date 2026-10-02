@@ -75,6 +75,7 @@ test('players in a lobby see each other join, move, change rods and leave', asyn
   b.send({ t: 'look', outfit: 'diver', rod: 'bamboo' });
   const look = await a.next('look');
   assert.deepEqual([look.id, look.outfit, look.rod], [welcomeB.id, 'diver', 'bamboo']);
+  assert.ok(Number.isInteger(look.look.shirt) && Number.isInteger(look.look.hair), 'everyone gets a shirt and hair colour');
 
   await b.close();
   const left = await a.next('leave');
@@ -125,4 +126,36 @@ test('an epic or rarer catch by a signed-in player is announced to the rest of t
   await assert.rejects(catcher.next('shout', 300), 'the catcher already sees their own catch');
   assert.ok(welcome.id);
   await Promise.all([catcher.close(), watcher.close()]);
+});
+
+test('the Beacon rod can only be taken by a wallet whose player is up the lighthouse', async () => {
+  const nacl = (await import('tweetnacl')).default;
+  const bs58 = (await import('bs58')).default;
+  const auth = await import('../server/auth.js');
+  const kp = nacl.sign.keyPair();
+  const wallet = bs58.encode(kp.publicKey);
+  const { message } = auth.createNonce(wallet);
+  const signature = bs58.encode(nacl.sign.detached(new TextEncoder().encode(message), kp.secretKey));
+  const { token } = auth.verify({ wallet, signature });
+  const find = () => fetch(`http://127.0.0.1:${app.port}/api/shop/find`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ id: 'beacon' }),
+  }).then(async (r) => [r.status, await r.json()]);
+
+  const [status, body] = await find();
+  assert.equal(status, 403, 'not in a lobby at all');
+  assert.equal(body.error, 'not_here');
+
+  const climber = client({ token, s: [-22, -2.8, 0, 0, 0] });
+  await climber.next('welcome');
+  assert.equal((await find())[0], 403, 'on the deck');
+
+  climber.send({ t: 's', s: [-22.9, -4.7, 0, 3, 0] });
+  await new Promise((r) => setTimeout(r, 100));
+  const [okStatus, ok] = await find();
+  assert.equal(okStatus, 200);
+  assert.equal(ok.rod, 'beacon');
+  assert.equal(ok.profile.rod, 'beacon');
+  await climber.close();
 });

@@ -157,6 +157,14 @@ const routes = {
     });
   }),
 
+  'POST /api/shop/find': user((wallet, { body }) => {
+    const id = needString(body, 'id', 40);
+    if (!lobby.isUpTheLighthouse(wallet)) {
+      throw new GameError('not_here', 'You need to be up the lighthouse, connected to a lobby, to take it.', 403);
+    }
+    return play(wallet, (p) => engine.find(p, id));
+  }),
+
   'POST /api/shop/equip': user((wallet, { body }) => {
     const { kind, id } = shopItem(body, { allowNoBait: true });
     return play(wallet, (p) => {

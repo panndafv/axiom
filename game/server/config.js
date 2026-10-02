@@ -77,8 +77,8 @@ export const config = {
   port: num('PORT', 8787),
   host: str('HOST', '0.0.0.0'),
   dbPath: dbPath === ':memory:' ? dbPath : fromGameDir(dbPath),
-  gameName: str('GAME_NAME', 'Pier Pressure'),
-  tokenSymbol: str('TOKEN_SYMBOL', 'PIER'),
+  gameName: str('GAME_NAME', 'Drift'),
+  tokenSymbol: str('TOKEN_SYMBOL', 'DRIFT'),
   tokenMint,
   dev: !tokenMint, // no mint configured: the holding check always passes
   solanaRpcUrl: str('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com'),

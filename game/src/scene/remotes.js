@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { createCharacter, rodTipWorld } from './characters.js';
 import { makeBobber } from '../game/fishing.js';
-import { DECK_Y } from './world.js';
-import { OUTFITS_BY_ID, RODS_BY_ID } from '../../shared/rules.js';
+import { DECK_Y, TOP_Y } from './world.js';
+import { RODS_BY_ID, lookColors } from '../../shared/rules.js';
 
 // Everyone else in the lobby. Their positions arrive ~8 times a second, so each one glides toward
 // its latest position and turns smoothly instead of jumping.
 
-const MODES = ['walk', 'fish', 'sit'];
+const MODES = ['walk', 'fish', 'sit', 'top']; // 'top': walking around the top of the lighthouse
 const TAG_RANGE = 32; // metres; name tags further away are hidden
 const lineMat = new THREE.LineBasicMaterial({ color: '#f5efe2', transparent: true, opacity: 0.7 });
 const tmp = new THREE.Vector3();
@@ -24,9 +24,9 @@ export function createRemotes(scene, labelsLayer) {
 
   function applyState(p, s, snap = false) {
     const [x, z, f, m, sp, bx, bz] = s;
-    p.target.set(x, DECK_Y, z);
-    p.targetFacing = f;
     p.mode = MODES[m] || 'walk';
+    p.target.set(x, p.mode === 'top' ? TOP_Y : DECK_Y, z);
+    p.targetFacing = f;
     p.netSpeed = sp;
     p.bob = Number.isFinite(bx) ? [bx, bz] : null;
     if (snap || p.pos.distanceTo(p.target) > 6) {
@@ -37,8 +37,7 @@ export function createRemotes(scene, labelsLayer) {
 
   function add(info) {
     if (players.has(info.id)) remove(info.id);
-    const outfit = OUTFITS_BY_ID[info.outfit] || OUTFITS_BY_ID.deckhand;
-    const char = createCharacter({ ...outfit.colors, rod: RODS_BY_ID[info.rod], shadows: false });
+    const char = createCharacter({ ...lookColors(info.outfit, info.look), rod: RODS_BY_ID[info.rod], shadows: false });
     scene.add(char.root);
     const tag = document.createElement('div');
     tag.className = `world-label player-tag${info.wallet ? ' wallet' : ''}`;
@@ -80,10 +79,10 @@ export function createRemotes(scene, labelsLayer) {
       const p = players.get(id);
       if (p) applyState(p, s);
     },
-    setLook(id, outfitId, rodId) {
+    setLook(id, outfitId, rodId, look) {
       const p = players.get(id);
       if (!p) return;
-      p.char.setOutfit((OUTFITS_BY_ID[outfitId] || OUTFITS_BY_ID.deckhand).colors);
+      p.char.setOutfit(lookColors(outfitId, look));
       p.char.setRod(RODS_BY_ID[rodId] || RODS_BY_ID.driftwood);
       if (p.mode === 'fish') p.char.rodInHand(); else p.char.rodOnBack();
     },
@@ -97,14 +96,15 @@ export function createRemotes(scene, labelsLayer) {
         const before = tmp.copy(p.pos);
         p.pos.lerp(p.target, k);
         const moved = before.distanceTo(p.pos) / Math.max(dt, 1e-3);
-        p.speed += ((p.mode === 'walk' ? Math.min(1, moved / 6) : 0) - p.speed) * Math.min(1, dt * 10);
+        const walking = p.mode === 'walk' || p.mode === 'top';
+        p.speed += ((walking ? Math.min(1, moved / 6) : 0) - p.speed) * Math.min(1, dt * 10);
         p.facing = dampAngle(p.facing, p.targetFacing, Math.min(1, dt * 10));
         p.char.root.position.copy(p.pos);
         p.char.root.rotation.y = p.facing;
         if ((p.mode === 'fish') !== p.char.holdingRod) {
           if (p.mode === 'fish') p.char.rodInHand(); else p.char.rodOnBack();
         }
-        p.char.animate(dt, p.speed, p.mode, p.mode === 'fish' ? 0.2 : 0);
+        p.char.animate(dt, p.speed, walking ? 'walk' : p.mode, p.mode === 'fish' ? 0.2 : 0);
 
         const fishing = p.mode === 'fish' && p.bob;
         p.bobber.visible = p.line.visible = !!fishing;
@@ -118,7 +118,7 @@ export function createRemotes(scene, labelsLayer) {
 
         // name tag above the head
         tmp.copy(p.pos);
-        tmp.y += 1.95;
+        tmp.y += 1.75;
         const dist = tmp.distanceTo(camera.position);
         tmp.project(camera);
         if (!showTags || tmp.z > 1 || dist > TAG_RANGE) {

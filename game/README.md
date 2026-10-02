@@ -1,11 +1,11 @@
-# Pier Pressure
+# Drift
 
 A low-poly 3D multiplayer fishing game for a memecoin. Up to 25 players share a pier. Cast from any
 edge, reel fish in, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
 for a share of a SOL reward pool** funded by the token's creator fees. Only wallets holding at
 least **$50 of the token** can cash in.
 
-"Pier Pressure" and `$PIER` are placeholders. Set your own name, ticker and mint in `.env`.
+The name and the `$DRIFT` ticker are set in `.env` (`GAME_NAME`, `TOKEN_SYMBOL`), along with the token mint.
 
 ```
 game/
@@ -77,10 +77,14 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
 
 - **Gold** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Gold has
   no value outside the game.
-- **Luck** comes from the rod (+0 to +40) plus bait (+6 to +45, used up one per cast). It multiplies
-  the weight of every tier above common by `1 + luck/100 × 1.5 × tier`. At 40 luck a mythic is 4×
-  as likely. Better rods also take a little more tension, so the rare fish they bring in can still
-  be landed.
+- **Luck** comes from the rod (+0 to +40 in the shop) plus bait (+6 to +45, used up one per cast).
+  It multiplies the weight of every tier above common by `1 + luck/100 × 1.5 × tier`. At 40 luck a
+  mythic is 4× as likely. Better rods also take a little more tension, so the rare fish they bring
+  in can still be landed.
+- **The Beacon** (+50 luck) is not for sale. It leans on the lamp room at the top of the lighthouse.
+  Press E at the lighthouse door (the prompt only appears when you stand there), walk round the
+  gallery and take it. The server only hands it to a wallet whose player is up the lighthouse in a
+  lobby at that moment.
 - **Cash-ins** pay a fixed percentage of whatever is in the pool at that moment, so the pool can
   never be drained to zero, and more players just means smaller slices. Before a wallet can cash in:
   - it must hold at least `MIN_HOLD_USD` of the token, checked live on-chain with the price from
@@ -118,7 +122,8 @@ Players see their claims and the transaction links in the reward pool panel.
 
 The server also speaks WebSocket on `/ws`. Players are put in the lowest-numbered lobby with room
 (25 per lobby) and see everyone in it walk, fish and change rods, with name tags (short wallet
-address, or `guest-xxxx`). When a signed-in player lands an Epic or rarer fish, the rest of their
+address, or `guest-xxxx`). Every new player gets a random shirt (10 colours) and hair colour (5),
+saved with their profile. When a signed-in player lands an Epic or rarer fish, the rest of their
 lobby gets a shout-out. There is no chat. Positions are cosmetic: fish, gold and the pool never go
 over the socket. Lobbies live in memory, so run one server instance (Render's single instance is
 fine).

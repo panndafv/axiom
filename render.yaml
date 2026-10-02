@@ -5,7 +5,7 @@
 # set TOKEN_MINT and SOLANA_RPC_URL, and remove SEED_POOL_SOL and EARN_GATE.
 services:
   - type: web
-    name: pier-pressure
+    name: drift
     runtime: node
     plan: free
     rootDir: game

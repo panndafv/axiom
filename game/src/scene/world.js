@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import {
   mat, box, cyl, barrel, crate, lanternPost, lantern, palmTree, cooler, chest, buoy, bucket, bench, rowboat,
-  pilingBundle, scoreboard, fishRack, rodRack, rodMesh, lighthouse, rockPile, island, seaStack,
+  pilingBundle, scoreboard, fishRack, rodRack, rodMesh, lighthouse, rockPile, island, seaStack, glowSprite,
 } from './props.js';
 import { woodTexture, boardTexture } from './textures.js';
 import { createCharacter } from './characters.js';
 import { createFish } from './fish3d.js';
 import { bakeStatic } from './batch.js';
-import { SPECIES_BY_ID, RODS } from '../../shared/rules.js';
+import { SPECIES_BY_ID, RODS, RODS_BY_ID } from '../../shared/rules.js';
 
 export const DECK_Y = 2.0;
+// Floor of the walkway around the lamp room at the top of the lighthouse.
+export const TOP_Y = DECK_Y + 11.28;
 
 // Pier layout, top view: x to the east, -z to the north (toward the sunset).
 const DECKS = [
@@ -216,6 +218,19 @@ export function createWorld(scene) {
   const lh = lighthouse();
   lh.position.set(LH.x, DECK_Y, LH.z);
   root.add(lh);
+
+  // The Beacon rod: leaning on the lamp room at the top, on the side that faces the open sea, so it
+  // is only a faint glint from the pier below.
+  const beaconDef = RODS_BY_ID.beacon;
+  const beaconDir = new THREE.Vector3(-0.72, 0, -0.69).normalize();
+  const beaconPos = new THREE.Vector3(LH.x + beaconDir.x * 1.02, TOP_Y, LH.z + beaconDir.z * 1.02);
+  const beaconRod = rodMesh(beaconDef.color, beaconDef.tip, 1.6);
+  beaconRod.position.copy(beaconPos);
+  beaconRod.quaternion.setFromAxisAngle(new THREE.Vector3(-beaconDir.z, 0, beaconDir.x).normalize(), 0.22);
+  const beaconGlow = glowSprite('warm', 1.6);
+  beaconGlow.position.copy(beaconPos).add(new THREE.Vector3(0, 1.1, 0));
+  dynamic.add(beaconRod, beaconGlow);
+  let beaconFound = false;
   // ---------------------------------------------------------------------------------------------
   // Props
 
@@ -269,12 +284,13 @@ export function createWorld(scene) {
   const floorLamp = place(lantern(), -2.1, 4.8, {});
   floorLamp.scale.setScalar(1.2);
 
-  // board, rack and rods along the main deck's north rail
+  // fish rack and rod rack along the main deck's north edge
   const board = boardTexture();
-  place(scoreboard(board.texture), 4.0, -6.35, { r: 0.9 });
+  // scoreboard on the south edge by the floor lantern, facing back into the deck
+  place(scoreboard(board.texture), 0.8, 6.35, { rot: Math.PI, r: 0.9 });
   const rackFish = ['bag_bass', 'candle_snapper', 'dock_sardine'].map((id) => createFish(SPECIES_BY_ID[id]));
-  place(fishRack(rackFish), 6.6, -6.2, { r: 0.9 });
-  const rods = place(rodRack(), 8.9, -6.35, { r: 0.8 });
+  place(fishRack(rackFish), 4.9, -6.2, { r: 0.9 });
+  const rods = place(rodRack(), 7.6, -6.35, { r: 0.8 });
 
   // north jetty
   const bundle = place(pilingBundle(), 1.7, -26.35, {});
@@ -344,7 +360,8 @@ export function createWorld(scene) {
   rods.add(rackRods);
   function setRackRods(owned = ['driftwood']) {
     rackRods.clear();
-    RODS.forEach((def, i) => {
+    // the hidden Beacon only shows up on the rack once someone has found it
+    RODS.filter((def) => !def.hidden || owned.includes(def.id)).forEach((def, i) => {
       const have = owned.includes(def.id);
       const r = rodMesh(have ? def.color : '#4a3c34', have ? def.tip : '#4a3c34', 1.6);
       r.position.set(-0.56 + i * 0.28, 0.3, 0.02);
@@ -364,10 +381,40 @@ export function createWorld(scene) {
       sitAt: new THREE.Vector3(22, DECK_Y, 6.1), standAt: new THREE.Vector3(22, DECK_Y, 4.6),
     },
     { id: 'pool', kind: 'pool', pos: new THREE.Vector3(20.6, DECK_Y, -5.9), title: 'REWARD POOL', hint: '(E) cash in', color: '#ffd95c', icon: '◆', radius: 2.4 },
-    { id: 'scores', kind: 'scores', pos: new THREE.Vector3(4.0, DECK_Y + 0.6, -6.35), title: 'SCORES', hint: '(E) view', color: '#ffd27a', icon: '✦', radius: 2.4 },
-    { id: 'rack', kind: 'rack', pos: new THREE.Vector3(6.6, DECK_Y, -6.2), title: 'FISH RACK', hint: '(E) sell', color: '#ffb547', icon: '✦', radius: 2.2 },
-    { id: 'rods', kind: 'rods', pos: new THREE.Vector3(8.9, DECK_Y, -6.35), title: 'RODS', hint: '(E) swap', color: '#4fe0cf', icon: '✦', radius: 2.2 },
+    { id: 'scores', kind: 'scores', pos: new THREE.Vector3(0.8, DECK_Y + 0.6, 6.35), title: 'SCORES', hint: '(E) view', color: '#ffd27a', icon: '✦', radius: 2.4 },
+    { id: 'rack', kind: 'rack', pos: new THREE.Vector3(4.9, DECK_Y, -6.2), title: 'FISH RACK', hint: '(E) sell', color: '#ffb547', icon: '✦', radius: 2.2 },
+    { id: 'rods', kind: 'rods', pos: new THREE.Vector3(7.6, DECK_Y, -6.35), title: 'RODS', hint: '(E) swap', color: '#4fe0cf', icon: '✦', radius: 2.2 },
+    // the lighthouse door: no label until you are standing right at it
+    { id: 'climb', kind: 'climb', pos: new THREE.Vector3(LH.x, DECK_Y, LH.z + 2.45), title: 'LIGHTHOUSE', hint: '(E) climb the stairs', color: '#ffd27a', icon: '✦', radius: 1.3, secret: true },
+    { id: 'down', kind: 'down', level: 'top', pos: new THREE.Vector3(LH.x, TOP_Y, LH.z + 1.22), title: 'STAIRS', hint: '(E) climb down', color: '#ffd27a', icon: '✦', radius: 0.9, labelY: 1.7 },
+    { id: 'beacon', kind: 'find', level: 'top', rod: 'beacon', pos: beaconPos.clone(), title: 'BEACON ROD', hint: '(E) take it', color: '#ffe27a', icon: '★', radius: 1.1, labelY: 1.9 },
   ];
+
+  // Where the stairs leave you at each end: facing along the walkway at the top and out towards
+  // the pier at the bottom, so the camera starts outside the tower.
+  const stairs = {
+    top: { pos: new THREE.Vector3(LH.x, TOP_Y, LH.z + 1.22), facing: -Math.PI / 2 },
+    deck: { pos: new THREE.Vector3(LH.x, DECK_Y, LH.z + 2.6), facing: Math.PI / 2 },
+  };
+
+  // Walkway around the lamp room, inside the gallery railing: every step is slid back onto it,
+  // so walking into the lamp room or the railing carries you around the ring.
+  function clampTop(x, z) {
+    const dx = x - LH.x, dz = z - LH.z;
+    const r = Math.hypot(dx, dz) || 1;
+    const k = THREE.MathUtils.clamp(r, 1.08, 1.42) / r;
+    return [LH.x + dx * k, LH.z + dz * k];
+  }
+
+  // level: 'deck' or 'top'. Things on the other level, the Beacon once found, and secrets you are
+  // not standing at are left out.
+  function isAvailable(it, level) {
+    if ((it.level || 'deck') !== level) return false;
+    return !(it.kind === 'find' && beaconFound);
+  }
+  function labelVisible(it, level, near) {
+    return isAvailable(it, level) && (!it.secret || near === it);
+  }
 
   const walk = { rects: walkRects, circle: { x: LH.x, z: LH.z, r: LH.r - 0.35 } };
 
@@ -419,6 +466,15 @@ export function createWorld(scene) {
     interactables,
     colliders,
     isWalkable,
+    clampTop,
+    lighthouse: { x: LH.x, z: LH.z, towerR: 1.8, roofR: 1.15 },
+    isAvailable,
+    labelVisible,
+    stairs,
+    setBeaconFound(found) {
+      beaconFound = found;
+      beaconRod.visible = beaconGlow.visible = !found;
+    },
     edgeSpot,
     isOverWater,
     spawn: { pos: new THREE.Vector3(0, DECK_Y, 3.5), yaw: Math.PI },
@@ -428,6 +484,7 @@ export function createWorld(scene) {
     setRackRods,
     update(t, dt) {
       lh.userData.beams.rotation.y = t * 0.45;
+      beaconGlow.scale.setScalar(1.3 + Math.sin(t * 3) * 0.35);
       boat.position.y = 0.32 + Math.sin(t * 1.3) * 0.04;
       boat.rotation.z = Math.sin(t * 0.9) * 0.03;
       boat.rotation.x = Math.sin(t * 1.1 + 1) * 0.02;

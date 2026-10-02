@@ -207,7 +207,7 @@ export function createPanels(app) {
       h(`button.tab${shopTab === t ? '.active' : ''}`, { on: { click: () => { shopTab = t; sfx.click(); rerender(); } } }, t.toUpperCase())));
     let cards;
     if (shopTab === 'rods') {
-      cards = RODS.map((r) => {
+      cards = RODS.filter((r) => !r.hidden || pr.rods.includes(r.id)).map((r) => {
         const owned = pr.rods.includes(r.id);
         const eq = pr.rod === r.id;
         return h(`div.card${eq ? '.equipped' : ''}`,
@@ -272,6 +272,14 @@ export function createPanels(app) {
           h('div.cards', RODS.map((r) => {
             const owned = pr.rods.includes(r.id);
             const eq = pr.rod === r.id;
+            if (r.hidden && !owned) {
+              return h('div.card.locked',
+                rodIcon(r, { dim: true }),
+                h('div.name', '???'),
+                h('div.blurb', 'Hidden somewhere on the pier. Not for sale.'),
+                h('div.luck', `🍀 +${r.luck} luck`),
+                h('div.foot', h('span.note', '🔒 find it')));
+            }
             return h(`div.card${eq ? '.equipped' : ''}${owned ? '' : '.locked'}`,
               { style: { cursor: owned && !eq ? 'pointer' : 'default' }, on: { click: () => { if (owned && !eq) act(() => app.call('equip', 'rod', r.id)); } } },
               rodIcon(r, { dim: !owned }),

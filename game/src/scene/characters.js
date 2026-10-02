@@ -6,7 +6,7 @@ import { paintedGeometry, paintedMaterial, boxPiece } from './merge.js';
 // with dozens of players still has room. Each limb is one painted mesh pivoting at its joint, so a
 // whole angler draws in seven calls and a lobby of fifty stays smooth.
 
-export const CHAR_SCALE = 0.7;
+export const CHAR_SCALE = 0.62;
 const SEAT_HEIGHT = 0.49; // bench seat top, in world metres
 
 const SKIN = '#f0c39a';

@@ -120,11 +120,13 @@ app.setMuted = (m) => {
 let lastRod = null, lastOutfit = null;
 function setProfile(p) {
   app.profile = p;
-  const looksChanged = p.rod !== lastRod || p.outfit !== lastOutfit;
+  const outfitKey = `${p.outfit}:${p.look?.shirt}:${p.look?.hair}`;
+  const looksChanged = p.rod !== lastRod || outfitKey !== lastOutfit;
   if (p.rod !== lastRod) { player.setRod(p.rod); lastRod = p.rod; }
-  if (p.outfit !== lastOutfit) { player.setOutfit(p.outfit); lastOutfit = p.outfit; }
-  if (looksChanged) lobby.send({ t: 'look', outfit: p.outfit, rod: p.rod });
+  if (outfitKey !== lastOutfit) { player.setOutfit(p.outfit, p.look); lastOutfit = outfitKey; }
+  if (looksChanged) lobby.send({ t: 'look', outfit: p.outfit, rod: p.rod, look: p.look });
   world.setRackRods(p.rods);
+  world.setBeaconFound(p.rods.includes('beacon'));
   hud.render();
   if (title.visible) title.render();
   panels.rerender();
@@ -285,7 +287,7 @@ const lobby = createLobbyClient({
   join(msg) { remotes.add(msg.p); showLobby(); },
   leave(msg) { remotes.remove(msg.id); showLobby(); },
   u(msg) { for (const [id, ...s] of msg.p) if (id !== myLobbyId) remotes.setState(id, s); },
-  look(msg) { remotes.setLook(msg.id, msg.outfit, msg.rod); },
+  look(msg) { remotes.setLook(msg.id, msg.outfit, msg.rod, msg.look); },
   shout(msg) {
     const sp = SPECIES_BY_ID[msg.sp];
     if (!sp) return;
@@ -300,9 +302,11 @@ const lobby = createLobbyClient({
 });
 
 const MODE_CODES = { walk: 0, fish: 1, sit: 2 };
+const UP_THE_LIGHTHOUSE = 3;
 function myState() {
   const st = player.state;
-  const s = [st.pos.x, st.pos.z, st.facing, MODE_CODES[st.mode] ?? 0, Math.min(1, st.speed)];
+  const mode = st.level === 'top' ? UP_THE_LIGHTHOUSE : MODE_CODES[st.mode] ?? 0;
+  const s = [st.pos.x, st.pos.z, st.facing, mode, Math.min(1, st.speed)];
   const b = fishing.bobberPosition();
   if (b) s.push(b.x, b.z);
   return s.map((n) => Math.round(n * 100) / 100);
@@ -315,6 +319,7 @@ function joinLobby() {
     token: app.mode === 'wallet' ? app.session?.token : undefined,
     outfit: app.profile?.outfit,
     rod: app.profile?.rod,
+    look: app.profile?.look,
     s: myState(),
   }));
 }
@@ -349,6 +354,21 @@ function interact(it) {
     case 'rest':
       player.setMode('sit', { spot: it });
       hud.setMode('sit');
+      break;
+    case 'climb':
+      sfx.open();
+      player.climb('top');
+      break;
+    case 'down':
+      sfx.open();
+      player.climb('deck');
+      break;
+    case 'find':
+      app.call('find', it.rod).then((res) => {
+        if (res.already) return;
+        sfx.land(5);
+        toast('★ You found the BEACON rod: +50 luck. It is on your rod rack now.', 'good');
+      }).catch((err) => toast(err.message, 'error'));
       break;
     default: break;
   }
@@ -463,7 +483,7 @@ function frame(now) {
 
   const mode = player.state.mode;
   const near = mode === 'walk' && !panels.open ? player.nearestInteractable() : null;
-  hud.updateLabels(camera, near, mode === 'walk');
+  hud.updateLabels(camera, near, mode === 'walk', player.state.level);
   touch?.update(mode, near, !!panels.open);
 
   if (bloom.enabled) composer.render(dt);

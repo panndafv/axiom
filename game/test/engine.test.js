@@ -255,3 +255,16 @@ test('the Ghost Whale is the rarest fish and pays 6.5% of the pool', () => {
 test('every fish name is at most two words', () => {
   for (const s of rules.SPECIES) assert.ok(s.name.split(/\s+/).length <= 2, s.name);
 });
+
+test('the Beacon rod cannot be bought, only found once at the top of the lighthouse', () => {
+  const p = engine.newProfile('tester', T0);
+  p.cash = 1e9;
+  assert.throws(() => engine.buy(p, 'rod', 'beacon'), { code: 'not_for_sale' });
+  assert.deepEqual(engine.find(p, 'beacon'), { rod: 'beacon', already: false });
+  assert.equal(p.rod, 'beacon');
+  assert.equal(engine.currentLuck(p), 50);
+  assert.deepEqual(engine.find(p, 'beacon'), { rod: 'beacon', already: true });
+  assert.equal(p.rods.filter((r) => r === 'beacon').length, 1);
+  assert.throws(() => engine.find(p, 'tidecaster'), { code: 'not_found' });
+  assert.throws(() => engine.find(p, 'constructor'), { code: 'not_found' });
+});

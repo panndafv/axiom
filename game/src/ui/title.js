@@ -62,7 +62,7 @@ export function createTitle(app) {
       ['Credits', '', () => app.panels.credits()],
     ];
     menu.replaceChildren(...items.map(([label, badge, fn], i) =>
-      h(`button.menu-item${i === selected ? '.selected' : ''}`, {
+      h(`button.menu-item${i === 0 ? '.primary' : ''}${i === selected ? '.selected' : ''}`, {
         on: {
           click: () => { selected = i; sfx.click(); fn(); render(); },
           mouseenter: () => { if (selected !== i) { selected = i; sfx.hover(); highlight(); } },

@@ -3,8 +3,8 @@
 const env = import.meta.env;
 
 export const CONFIG = {
-  gameName: env.VITE_GAME_NAME || 'Pier Pressure',
-  tokenSymbol: env.VITE_TOKEN_SYMBOL || 'PIER',
+  gameName: env.VITE_GAME_NAME || 'Drift',
+  tokenSymbol: env.VITE_TOKEN_SYMBOL || 'DRIFT',
   tokenMint: env.VITE_TOKEN_MINT || '',
   buyUrl: env.VITE_BUY_URL || '',
   apiUrl: (env.VITE_API_URL || '').replace(/\/$/, ''),

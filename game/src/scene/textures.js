@@ -79,10 +79,10 @@ export function boardTexture(w = 256, h = 320) {
     g.lineWidth = 6;
     g.strokeRect(3, 3, w - 6, h - 6);
     g.fillStyle = '#ffcf5a';
-    g.font = 'bold 26px "Pixelify Sans", monospace';
+    g.font = 'bold 26px "Drift Digits", "Pixelify Sans", monospace';
     g.textAlign = 'center';
     g.fillText(title, w / 2, 40);
-    g.font = '20px "Pixelify Sans", monospace';
+    g.font = '20px "Drift Digits", "Pixelify Sans", monospace';
     lines.slice(0, 8).forEach((line, i) => {
       g.textAlign = 'left';
       g.fillStyle = i === 0 ? '#ffe9a8' : '#bfe9e3';
