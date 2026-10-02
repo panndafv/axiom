@@ -226,9 +226,15 @@ export function createPlayer(scene, camera, world, input, settings) {
       tmpT.y = 0.8;
       camTarget.lerp(tmpT, k);
     } else if (state.mode === 'sit') {
-      const s = state.sitSpot.pos;
-      tmpV.set(s.x + 1.6, DECK_Y + 2.6, s.z + 3.6);
-      tmpT.set(s.x - 6, DECK_Y + 2.2, s.z - 30);
+      const spot = state.sitSpot;
+      const s = spot.pos;
+      if (spot.view) { // a seat can choose its own view (the campfire log looks at the fire)
+        tmpV.copy(spot.view.from);
+        tmpT.copy(spot.view.to);
+      } else {
+        tmpV.set(s.x + 1.6, DECK_Y + 2.6, s.z + 3.6);
+        tmpT.set(s.x - 6, DECK_Y + 2.2, s.z - 30);
+      }
       camPos.lerp(tmpV, 1 - Math.exp(-dt * 3));
       camTarget.lerp(tmpT, 1 - Math.exp(-dt * 3));
     }

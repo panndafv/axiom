@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   mat, box, cyl, barrel, crate, lanternPost, lantern, palmTree, cooler, chest, buoy, bucket, bench, rowboat,
   pilingBundle, scoreboard, fishRack, rodRack, rodMesh, lighthouse, rockPile, island, seaStack, glowSprite, portal,
+  campfire, logSeat, bush, flowers, stringLights, grassIsland,
 } from './props.js';
 import { woodTexture, boardTexture } from './textures.js';
 import { createCharacter } from './characters.js';
@@ -24,15 +25,24 @@ const DECKS = [
   // west pier, mirroring the shop deck on the other side of the main deck
   { id: 'westWalk', x0: -16,   x1: -10,  z0: 3.4,  z1: 6.6,  dir: 'x' },
   { id: 'westDeck', x0: -29,   x1: -16,  z0: 3,    z1: 13,   dir: 'z' },
+  // boardwalk out to the island; its far end rests on the grass, so it is not a fishing edge
+  { id: 'islandWalk', x0: 0.4, x1: 3.6,  z0: 7,    z1: 11.2, dir: 'z', open: ['z1'] },
 ];
 const LIGHTHOUSE = { x: -22, z: -4, r: 5, towerR: 2.15 };
 
-// Portals on the main deck's south edge, beside the scoreboard. They lead nowhere yet.
-const PORTAL_Z = 5.75;
+// A grassy island off the main deck's south side, reached by the island boardwalk. r is the radius
+// of the grass top. The portals, the scoreboard and a campfire live on it.
+const ISLAND = { x: 2, z: 18.6, r: 7.6 };
+const FIRE = { x: 2.3, z: 18.0 };
+// Turns something at (x, z) to face the campfire clearing.
+const facingFire = (x, z) => Math.atan2(FIRE.x - x, FIRE.z - z);
+
+// Portals at the back of the island, facing the fire. They lead nowhere yet.
 const PORTALS = [
-  { id: 'eggs', title: 'EGGS', x: 3.9, color: '#ff7ad9', motif: 'egg' },
-  { id: 'lagoon', title: 'LAGOON', x: 6.95, color: '#36e3d0', motif: 'starfish' },
+  { id: 'lagoon', title: 'LAGOON', x: 5.4, z: 22.3, color: '#36e3d0', motif: 'starfish', roof: '#7d5232' },
+  { id: 'eggs', title: 'EGGS', x: 1.7, z: 23.1, color: '#ff7ad9', motif: 'egg', roof: '#5d6b85' },
 ];
+const SCOREBOARD = { x: -2.2, z: 21.4 };
 
 const PLANK_COLORS = ['#c98b52', '#b87a45', '#d49a5e', '#c2844b'].map((c) => new THREE.Color(c));
 
@@ -293,10 +303,6 @@ export function createWorld(scene) {
 
   // fish rack and rod rack along the main deck's north edge
   const board = boardTexture();
-  // scoreboard on the south edge by the floor lantern, facing back into the deck
-  place(scoreboard(board.texture), 0.8, 6.35, { rot: Math.PI, r: 0.9 });
-  // two portals beside it to areas that are not open yet, facing back into the deck
-  const portals = PORTALS.map((pt) => place(portal(pt.color, pt.title, pt.motif), pt.x, PORTAL_Z, { rot: Math.PI, r: 1.15 }));
   const rackFish = ['bag_bass', 'candle_snapper', 'dock_sardine'].map((id) => createFish(SPECIES_BY_ID[id]));
   place(fishRack(rackFish), 4.9, -6.2, { r: 0.9 });
   const rods = place(rodRack(), 7.6, -6.35, { r: 0.8 });
@@ -338,6 +344,62 @@ export function createWorld(scene) {
   place(crate(), 28.4, 3.9, { rot: 0.1, r: 0.65 });
   place(crate(0.6, '#e0ae76'), 26.4, 4.6, { rot: 0.6, r: 0.5 });
   place(bucket(), 25.6, -5.9, { r: 0.35 });
+
+  // ---- the island: grass, sand, boulders, campfire, portal huts, scoreboard, palms and lights
+  const I = ISLAND;
+  const isle = grassIsland(I.r, DECK_Y, {
+    clearing: { x: FIRE.x - I.x, z: FIRE.z - I.z, r: 2.8 },
+    path: { x: 0, z: -5.4, w: 2.4, len: 4.6 },
+  });
+  isle.position.set(I.x, 0, I.z);
+  root.add(isle);
+
+  const fire = place(campfire(), FIRE.x, FIRE.z, { r: 0.95 });
+  const fireLight = new THREE.PointLight('#ff9a3c', 14, 10, 1.6);
+  fireLight.position.set(FIRE.x, DECK_Y + 0.9, FIRE.z);
+  dynamic.add(fireLight);
+  place(logSeat(1.5), FIRE.x - 1.8, FIRE.z, { rot: Math.PI / 2, r: 0.5 });
+  place(logSeat(1.4), FIRE.x + 1.8, FIRE.z + 0.3, { rot: Math.PI / 2 + 0.25, r: 0.5 });
+
+  const portals = PORTALS.map((pt) => place(portal(pt.color, pt.title, pt.motif, pt.roof), pt.x, pt.z, { rot: facingFire(pt.x, pt.z), r: 1.35 }));
+  const sb = place(scoreboard(board.texture), SCOREBOARD.x, SCOREBOARD.z, { rot: facingFire(SCOREBOARD.x, SCOREBOARD.z), r: 1.05, scale: 1.2 });
+  const sbFish = createFish(SPECIES_BY_ID.golden_koi);
+  sbFish.scale.setScalar(0.55);
+  sbFish.position.set(0, 2.95, 0.1);
+  sb.add(sbFish);
+
+  place(palmTree(4.6), I.x + 4.9, I.z + 4.4, { y: DECK_Y - 0.05, r: 0.45 });
+  place(palmTree(4.0), I.x - 2.7, I.z + 6.2, { y: DECK_Y - 0.05, r: 0.45, rot: 1.2 });
+  place(barrel(), 3.55, 23.5, { r: 0.5 });
+  place(barrel('#c86f35'), 3.3, 24.4, { rot: 0.8, r: 0.5 });
+  place(crate(), -4.3, 19.3, { rot: 0.35, r: 0.6 });
+  place(crate(0.6, '#e0ae76'), -4.3, 19.3, { rot: 0.9, y: DECK_Y + 0.9 });
+  place(barrel(), -4.7, 20.7, { r: 0.5 });
+  place(bucket(), 4.1, 12.9, { r: 0.35 });
+  place(lantern(), -0.3, 20.7, {}).scale.setScalar(1.2);
+  place(lantern(), 5.9, 19.4, {}).scale.setScalar(1.2);
+
+  // lantern posts at the landing and two taller ones carrying festoon lights over the clearing
+  const postAt = (x, z, height) => {
+    const toCentre = Math.atan2(-(I.z - z), I.x - x); // turn the lamp arm towards the middle
+    place(lanternPost(height), x, z, { rot: toCentre, r: 0.3 });
+    return new THREE.Vector3(x, DECK_Y + height - 0.05, z);
+  };
+  const landW = postAt(0.0, 11.9, 2.7), landE = postAt(4.0, 11.9, 2.7);
+  const westTop = postAt(-4.7, 16.4, 3.6), eastTop = postAt(8.8, 17.6, 3.6);
+  root.add(stringLights(westTop, eastTop, { sag: 0.7, bulbs: 18 }));
+  root.add(stringLights(landE, eastTop, { sag: 0.35, bulbs: 10 }));
+  root.add(stringLights(landW, westTop, { sag: 0.35, bulbs: 9 }));
+
+  // bushes round the shore (angles from the centre, 0 = east, -90 = towards the boardwalk)
+  for (const [deg, size] of [[-60, 0.5], [-32, 0.42], [14, 0.48], [32, 0.4], [72, 0.45], [122, 0.5], [168, 0.46], [-168, 0.42], [-140, 0.5], [-118, 0.4]]) {
+    const a = (deg * Math.PI) / 180;
+    place(bush(size), I.x + Math.cos(a) * 6.85, I.z + Math.sin(a) * 6.85, { y: DECK_Y - 0.05, rot: deg, r: 0.35 });
+  }
+  for (const [x, z, cols] of [[0.9, 13.6, null], [3.2, 13.3, ['#ffe066', '#ffffff']], [-0.5, 16.6, null], [5.3, 16.2, ['#c98bff', '#ffe066']],
+    [-3.3, 18.6, ['#ff7ab8', '#ffffff']], [7.4, 20.6, null], [-1.4, 23.6, ['#ffe066', '#ff9f6b']]]) {
+    place(cols ? flowers(cols) : flowers(), x, z, { y: DECK_Y - 0.04 });
+  }
 
   const npc = createCharacter({ shirt: '#e8b931', pants: '#5a3a22', hair: '#3b2a20', hat: '#b8433a', rod: RODS[1] });
   npc.root.position.set(27.6, DECK_Y, 2.6);
@@ -390,11 +452,18 @@ export function createWorld(scene) {
       sitAt: new THREE.Vector3(22, DECK_Y, 6.1), standAt: new THREE.Vector3(22, DECK_Y, 4.6),
     },
     { id: 'pool', kind: 'pool', pos: new THREE.Vector3(20.6, DECK_Y, -5.9), title: 'REWARD POOL', hint: '(E) cash in', color: '#ffd95c', icon: '◆', radius: 2.4 },
-    { id: 'scores', kind: 'scores', pos: new THREE.Vector3(0.8, DECK_Y + 0.6, 6.35), title: 'SCORES', hint: '(E) view', color: '#ffd27a', icon: '✦', radius: 2.4 },
+    { id: 'scores', kind: 'scores', pos: inFront(SCOREBOARD, 1.3), title: 'SCORES', hint: '(E) view', color: '#ffd27a', icon: '✦', radius: 2.0, labelY: 3.9 },
     ...PORTALS.map((pt) => ({
-      id: pt.id, kind: 'portal', pos: new THREE.Vector3(pt.x, DECK_Y, PORTAL_Z - 0.6), title: pt.title, hint: 'coming soon',
-      color: pt.color, icon: '◎', radius: 1.9, labelY: 3.9,
+      id: pt.id, kind: 'portal', pos: inFront(pt, 1.4), title: pt.title, hint: 'coming soon',
+      color: pt.color, icon: '◎', radius: 1.8, labelY: 4.6,
     })),
+    {
+      id: 'fireside', kind: 'rest', pos: new THREE.Vector3(FIRE.x - 1.8, DECK_Y, FIRE.z), title: 'CAMPFIRE', hint: '(E) sit by the fire',
+      color: '#ff9a3c', icon: '✦', radius: 1.4, labelY: 2.2,
+      sitAt: new THREE.Vector3(FIRE.x - 1.8, DECK_Y, FIRE.z), standAt: new THREE.Vector3(FIRE.x - 2.9, DECK_Y, FIRE.z - 0.6),
+      sitFacing: Math.PI / 2,
+      view: { from: new THREE.Vector3(FIRE.x - 4.0, DECK_Y + 2.5, FIRE.z - 3.4), to: new THREE.Vector3(FIRE.x + 0.6, DECK_Y + 1.0, FIRE.z + 2.6) },
+    },
     { id: 'rack', kind: 'rack', pos: new THREE.Vector3(4.9, DECK_Y, -6.2), title: 'FISH RACK', hint: '(E) sell', color: '#ffb547', icon: '✦', radius: 2.2 },
     { id: 'rods', kind: 'rods', pos: new THREE.Vector3(7.6, DECK_Y, -6.35), title: 'RODS', hint: '(E) swap', color: '#4fe0cf', icon: '✦', radius: 2.2 },
     // the lighthouse door: no label until you are standing right at it
@@ -402,6 +471,12 @@ export function createWorld(scene) {
     { id: 'down', kind: 'down', level: 'top', pos: new THREE.Vector3(LH.x, TOP_Y, LH.z + 1.22), title: 'STAIRS', hint: '(E) climb down', color: '#ffd27a', icon: '✦', radius: 0.9, labelY: 1.7 },
     { id: 'beacon', kind: 'find', level: 'top', rod: 'beacon', pos: beaconPos.clone(), title: 'BEACON ROD', hint: '(E) take it', color: '#ffe27a', icon: '★', radius: 1.1, labelY: 1.9 },
   ];
+
+  // A spot 'dist' in front of something that faces the campfire.
+  function inFront(o, dist) {
+    const a = facingFire(o.x, o.z);
+    return new THREE.Vector3(o.x + Math.sin(a) * dist, DECK_Y, o.z + Math.cos(a) * dist);
+  }
 
   // Where the stairs leave you at each end: facing along the walkway at the top and out towards
   // the pier at the bottom, so the camera starts outside the tower.
@@ -429,12 +504,14 @@ export function createWorld(scene) {
     return isAvailable(it, level) && (!it.secret || near === it);
   }
 
-  const walk = { rects: walkRects, circle: { x: LH.x, z: LH.z, r: LH.r - 0.35 } };
+  const walk = {
+    rects: walkRects,
+    circles: [{ x: LH.x, z: LH.z, r: LH.r - 0.35 }, { x: ISLAND.x, z: ISLAND.z, r: ISLAND.r - 0.35 }],
+  };
 
   function isWalkable(x, z) {
     for (const r of walk.rects) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return true;
-    const c = walk.circle;
-    return (x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r;
+    return walk.circles.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r);
   }
 
   // Where the player would stand to fish if they are at the edge of the pier, or null. The spot
@@ -458,6 +535,14 @@ export function createWorld(scene) {
       bestD = LH.r - dc;
       best = { px: LH.x + (dx / dc) * LH.r, pz: LH.z + (dz / dc) * LH.r, nx: dx / dc, nz: dz / dc };
     }
+    // the island's shore, except where the boardwalk lands (north)
+    const ix = x - ISLAND.x, iz = z - ISLAND.z;
+    const di = Math.hypot(ix, iz);
+    const towardBoardwalk = iz < 0 && Math.abs(ix) < 2.4;
+    if (di > 0 && di <= ISLAND.r && ISLAND.r - di < bestD && !towardBoardwalk) {
+      bestD = ISLAND.r - di;
+      best = { px: ISLAND.x + (ix / di) * ISLAND.r, pz: ISLAND.z + (iz / di) * ISLAND.r, nx: ix / di, nz: iz / di };
+    }
     if (!best) return null;
     return {
       id: 'edge', kind: 'fish', title: 'FISH HERE', hint: '(E) cast a line', color: '#4fe0cf', icon: '✦',
@@ -471,6 +556,7 @@ export function createWorld(scene) {
   function isOverWater(x, z) {
     for (const d of DECKS) if (x > d.x0 - 0.8 && x < d.x1 + 0.8 && z > d.z0 - 0.8 && z < d.z1 + 0.8) return false;
     if (Math.hypot(x - LH.x, z - LH.z) < LH.r + 2.5) return false;
+    if (Math.hypot(x - ISLAND.x, z - ISLAND.z) < ISLAND.r + 2.5) return false;
     if (Math.hypot(x - boat.position.x, z - boat.position.z) < 2.4) return false;
     return true;
   }
@@ -498,6 +584,8 @@ export function createWorld(scene) {
     update(t, dt) {
       lh.userData.beams.rotation.y = t * 0.45;
       for (const pt of portals) pt.userData.update(t);
+      fire.userData.update(t);
+      fireLight.intensity = 13 + Math.sin(t * 11) * 1.6 + Math.sin(t * 23 + 1) * 0.9;
       beaconGlow.scale.setScalar(1.3 + Math.sin(t * 3) * 0.35);
       boat.position.y = 0.32 + Math.sin(t * 1.3) * 0.04;
       boat.rotation.z = Math.sin(t * 0.9) * 0.03;

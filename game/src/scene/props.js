@@ -577,9 +577,9 @@ export function seaStack() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Portal to an area that is not open yet: a stone arch like the lighthouse plinth, a swirling
-// doorway in the portal's own colour, a hanging "coming soon" sign and a motif on top
-// ('egg' or 'starfish'). group.userData.update(t) animates it.
+// Portal to an area that is not open yet: a little wooden hut with a pitched roof, a swirling
+// doorway in the portal's own colour, a COMING SOON sign over the door, lanterns on the posts and
+// a motif on the ridge ('egg' or 'starfish'). group.userData.update(t) animates it.
 
 function signTexture(name, color) {
   const c = document.createElement('canvas');
@@ -613,42 +613,64 @@ function signTexture(name, color) {
   return tex;
 }
 
-export function portal(color, name, motif = 'egg') {
+export function portal(color, name, motif = 'egg', roofColor = '#7d5232') {
   const g = new THREE.Group();
-  const stone = '#8b8076', stoneLight = '#a39686';
-  const base = 0.14, archY = 2.14, R = 1.0, w = 0.78;
+  const wood = '#8a5a32', woodDark = '#5e3b22', base = 0.16, top = 2.55, w = 0.74;
 
-  const step = box(2.6, base, 1.0, stoneLight);
-  step.position.y = base / 2;
-  g.add(step);
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 4; i++) {
-      const b = box(0.44 - (i % 2) * 0.05, 0.5, 0.52 - (i % 2) * 0.05, i % 2 ? stone : stoneLight);
-      b.position.set(side * R, base + 0.25 + i * 0.5, 0);
-      b.rotation.y = (i % 2 ? 0.06 : -0.05) * side;
-      g.add(b);
+  // plank floor
+  const floor = box(2.8, base, 1.7, '#a8743f');
+  floor.position.y = base / 2;
+  g.add(floor);
+  for (const x of [-0.93, -0.31, 0.31, 0.93]) {
+    const seam = box(0.03, 0.02, 1.7, '#7a5230');
+    seam.position.set(x, base + 0.005, 0);
+    g.add(seam);
+  }
+  // posts, a back wall behind the doorway and a beam across the top
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const post = box(0.2, top, 0.2, wood);
+      post.position.set(sx * 1.2, base + top / 2, sz * 0.62);
+      g.add(post);
+    }
+    const side = box(0.08, top * 0.45, 1.24, woodDark);
+    side.position.set(sx * 1.2, base + top * 0.22, 0);
+    g.add(side);
+  }
+  const back = box(2.3, top, 0.1, woodDark);
+  back.position.set(0, base + top / 2, -0.6);
+  g.add(back);
+  for (const z of [-0.62, 0.62]) {
+    const beam = box(2.6, 0.18, 0.2, wood);
+    beam.position.set(0, base + top, z);
+    g.add(beam);
+  }
+  // pitched roof: two sloping slabs and a ridge cap, overhanging all round
+  const slope = 0.52;
+  const shingle = `#${new THREE.Color(roofColor).multiplyScalar(0.75).getHexString()}`;
+  for (const sx of [-1, 1]) {
+    const slab = box(1.62, 0.12, 2.0, roofColor);
+    slab.position.set(sx * 0.7, base + top + 0.52, 0);
+    slab.rotation.z = -sx * slope;
+    g.add(slab);
+    for (const t of [0.3, 0.62]) { // darker shingle lines across the slab, down from the ridge
+      const row = box(0.08, 0.035, 2.02, shingle);
+      row.position.set(sx * t * 1.4, base + top + 0.92 - t * 0.8 + 0.07, 0);
+      row.rotation.z = -sx * slope;
+      g.add(row);
     }
   }
-  // the arch: wedge blocks round a half circle, with a keystone in the portal's colour
-  const n = 7;
-  for (let i = 0; i < n; i++) {
-    if (i === 3) continue;
-    const a = ((i + 0.5) / n) * Math.PI;
-    const b = box(0.46, 0.42, 0.52, i % 2 ? stone : stoneLight);
-    b.position.set(Math.cos(a) * R, archY + Math.sin(a) * R, 0);
-    b.rotation.z = a - Math.PI / 2;
-    g.add(b);
-  }
-  const key = box(0.44, 0.42, 0.58, color, { emissive: color, emissiveIntensity: 0.45 });
-  key.position.set(0, archY + R, 0);
-  g.add(key);
+  const ridge = box(0.18, 0.16, 2.06, woodDark);
+  ridge.position.y = base + top + 0.95;
+  g.add(ridge);
 
   // the swirling doorway (position-based shader, so no uv fiddling)
+  const doorTop = top - 0.55;
   const shape = new THREE.Shape();
   shape.moveTo(-w, base);
   shape.lineTo(w, base);
-  shape.lineTo(w, archY);
-  shape.absarc(0, archY, w, 0, Math.PI, false);
+  shape.lineTo(w, doorTop);
+  shape.absarc(0, doorTop, w, 0, Math.PI, false);
   shape.lineTo(-w, base);
   const swirl = new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
@@ -660,40 +682,54 @@ export function portal(color, name, motif = 'egg') {
     fragmentShader: /* glsl */`
       uniform float time; uniform vec3 color; varying vec2 vP;
       void main() {
-        vec2 p = vP - vec2(0.0, 1.35);
+        vec2 p = vP - vec2(0.0, 1.3);
         float r = length(p * vec2(1.0, 0.72));
         float a = atan(p.y, p.x);
         float s1 = sin(a * 3.0 + r * 10.0 - time * 2.6) * 0.5 + 0.5;
         float s2 = sin(a * 5.0 - r * 7.0 + time * 1.8) * 0.5 + 0.5;
         float core = smoothstep(1.2, 0.0, r);
         vec3 c = mix(color * 0.35, color * 1.4, s1 * 0.6 + s2 * 0.3) + vec3(core * 0.2);
-        gl_FragColor = vec4(c, 0.93);
+        gl_FragColor = vec4(c, 0.95);
       }`,
   });
   const door = mesh(new THREE.ShapeGeometry(shape, 16), swirl, { cast: false, receive: false, isStatic: false });
+  door.position.z = -0.52;
   g.add(door);
-
-  // hanging sign across the top of the doorway
-  const sign = mesh(new THREE.PlaneGeometry(1.3, 0.41),
-    new THREE.MeshBasicMaterial({ map: signTexture(name, color), toneMapped: false, side: THREE.DoubleSide }),
-    { cast: false, isStatic: false });
-  sign.position.set(0, archY + 0.32, 0.3);
-  g.add(sign);
-  for (const x of [-0.5, 0.5]) {
-    const rope = box(0.025, 0.42, 0.025, '#d8c8a4');
-    rope.position.set(x, archY + 0.72, 0.28);
-    g.add(rope);
+  // a wooden frame round the doorway
+  for (const sx of [-1, 1]) {
+    const jamb = box(0.12, doorTop - base, 0.14, wood);
+    jamb.position.set(sx * (w + 0.06), base + (doorTop - base) / 2, -0.5);
+    g.add(jamb);
   }
 
-  // on top: a speckled egg, or a starfish
+  // sign over the door
+  const sign = mesh(new THREE.PlaneGeometry(1.7, 0.53),
+    new THREE.MeshBasicMaterial({ map: signTexture(name, color), toneMapped: false }),
+    { cast: false, isStatic: false });
+  sign.position.set(0, base + top + 0.12, 0.74);
+  g.add(sign);
+
+  // lanterns hanging under the eaves
+  for (const sx of [-1, 1]) {
+    const hook = box(0.03, 0.22, 0.03, '#3a2a22');
+    hook.position.set(sx * 1.38, base + top - 0.1, 0.62);
+    g.add(hook);
+    const l = lantern();
+    l.scale.setScalar(0.7);
+    l.position.set(sx * 1.38, base + top - 0.62, 0.62);
+    g.add(l);
+  }
+
+  // on the ridge: a speckled egg, or a starfish
+  const ridgeY = base + top + 1.03;
   if (motif === 'egg') {
     const egg = mesh(new THREE.SphereGeometry(0.2, 9, 7), mat('#f6ead2'));
     egg.scale.set(1, 1.3, 1);
-    egg.position.set(0, archY + R + 0.46, 0);
+    egg.position.set(0, ridgeY + 0.26, 0.6);
     g.add(egg);
     for (const [x, y, z] of [[0.12, 0.08, 0.13], [-0.1, -0.04, 0.15], [0.04, 0.2, 0.15], [-0.15, 0.14, 0.05]]) {
       const dot = mesh(new THREE.SphereGeometry(0.035, 5, 4), mat(color));
-      dot.position.set(x, archY + R + 0.46 + y, z);
+      dot.position.set(x, ridgeY + 0.26 + y, 0.6 + z);
       g.add(dot);
     }
   } else {
@@ -705,7 +741,7 @@ export function portal(color, name, motif = 'egg') {
       arm.rotation.z = -a;
       star.add(arm);
     }
-    star.position.set(0, archY + R + 0.45, 0.12);
+    star.position.set(0, ridgeY + 0.2, 0.75);
     g.add(star);
   }
 
@@ -715,8 +751,8 @@ export function portal(color, name, motif = 'egg') {
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: glowTexture(`rgba(${rgb},0.8)`, `rgba(${rgb},0)`), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.6,
   }));
-  glow.scale.setScalar(3.4);
-  glow.position.set(0, 1.4, 0.35);
+  glow.scale.setScalar(3.2);
+  glow.position.set(0, 1.3, 0);
   g.add(glow);
   const sparkMat = new THREE.MeshBasicMaterial({ color: c.clone().lerp(new THREE.Color('#ffffff'), 0.5), toneMapped: false });
   const sparks = Array.from({ length: 8 }, (_, i) => {
@@ -731,10 +767,172 @@ export function portal(color, name, motif = 'egg') {
     glow.material.opacity = 0.5 + Math.sin(t * 2.2) * 0.12;
     for (const m of sparks) {
       const k = (t * 0.28 + m.userData.phase) % 1;
-      m.position.set(Math.sin(t * 0.9 + m.userData.phase * 9) * 0.55, base + 0.2 + k * 2.6, 0.18);
+      m.position.set(Math.sin(t * 0.9 + m.userData.phase * 9) * 0.55, base + 0.2 + k * 2.2, -0.3);
       m.scale.setScalar(Math.sin(k * Math.PI) * 1.2);
       m.rotation.y = t * 2;
     }
   };
+  return g;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Island pieces
+
+// Campfire: a ring of stones, a teepee of logs and flickering flames. userData.update(t).
+export function campfire() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const st = mesh(new THREE.DodecahedronGeometry(0.17), mat(i % 2 ? '#8d8a86' : '#a59f97'));
+    st.position.set(Math.cos(a) * 0.62, 0.08, Math.sin(a) * 0.62);
+    st.scale.y = 0.7;
+    st.rotation.y = a * 3;
+    g.add(st);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    const log = cyl(0.06, 0.08, 0.86, 6, i % 2 ? '#6b4225' : '#7c4f2c');
+    log.position.set(Math.cos(a) * 0.17, 0.32, Math.sin(a) * 0.17);
+    log.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
+    g.add(log);
+  }
+  const embers = mesh(new THREE.CircleGeometry(0.38, 10), mat('#ff6a1a', { emissive: '#ff4a0a', emissiveIntensity: 2.2 }), { cast: false });
+  embers.rotation.x = -Math.PI / 2;
+  embers.position.y = 0.05;
+  g.add(embers);
+  const flames = [
+    ['#ff7a1a', 0.26, 0.85, 0], ['#ffb02e', 0.19, 0.68, 0.1], ['#ffe27a', 0.11, 0.48, 0.2],
+  ].map(([c, r, hgt, off]) => {
+    const f = mesh(new THREE.ConeGeometry(r, hgt, 6), new THREE.MeshBasicMaterial({ color: c, toneMapped: false, transparent: true, opacity: 0.92 }),
+      { cast: false, receive: false, isStatic: false });
+    f.position.y = 0.12 + hgt / 2;
+    f.userData = { base: hgt, off };
+    g.add(f);
+    return f;
+  });
+  const glow = glowSprite('warm', 2.6);
+  glow.position.y = 0.6;
+  g.add(glow);
+  g.userData.update = (t) => {
+    for (const f of flames) {
+      const k = 1 + Math.sin(t * 9 + f.userData.off * 20) * 0.12 + Math.sin(t * 17 + f.userData.off * 7) * 0.06;
+      f.scale.set(1, k, 1);
+      f.position.y = 0.12 + (f.userData.base * k) / 2;
+      f.rotation.y = t * (1 + f.userData.off);
+    }
+    glow.scale.setScalar(2.4 + Math.sin(t * 11) * 0.2);
+  };
+  return g;
+}
+
+// A log to sit on by the fire, lying along x.
+export function logSeat(length = 1.5) {
+  const g = new THREE.Group();
+  const log = cyl(0.2, 0.22, length, 8, '#7a4c2a');
+  log.rotation.z = Math.PI / 2;
+  log.position.y = 0.2;
+  const ends = [-1, 1].map((s) => {
+    const e = cyl(0.16, 0.16, 0.02, 8, '#d8b07a');
+    e.rotation.z = Math.PI / 2;
+    e.position.set(s * (length / 2 + 0.005), 0.2, 0);
+    return e;
+  });
+  g.add(log, ...ends);
+  return g;
+}
+
+// A round leafy bush.
+export function bush(size = 0.5, color = '#4f9a3f') {
+  const g = new THREE.Group();
+  for (const [x, y, z, s] of [[0, 0.5, 0, 1], [0.45, 0.35, 0.1, 0.75], [-0.4, 0.32, -0.05, 0.7], [0.1, 0.3, 0.4, 0.65]]) {
+    const ball = mesh(new THREE.IcosahedronGeometry(size * s, 0), mat(s === 1 ? color : '#5aac48'));
+    ball.position.set(x * size * 1.6, y * size * 1.6, z * size * 1.6);
+    g.add(ball);
+  }
+  return g;
+}
+
+// A few flowers on short stems.
+export function flowers(colors = ['#ff7ab8', '#ffe066', '#ffffff']) {
+  const g = new THREE.Group();
+  for (let i = 0; i < 5; i++) {
+    const a = i * 2.4, r = 0.12 + (i % 3) * 0.1;
+    const stem = box(0.02, 0.22, 0.02, '#3f7a2f');
+    stem.position.set(Math.cos(a) * r, 0.11, Math.sin(a) * r);
+    const bloom = mesh(new THREE.IcosahedronGeometry(0.06, 0), mat(colors[i % colors.length]));
+    bloom.position.set(Math.cos(a) * r, 0.24, Math.sin(a) * r);
+    g.add(stem, bloom);
+  }
+  return g;
+}
+
+// Festoon lights between two points (world positions): a sagging cable with warm bulbs.
+export function stringLights(a, b, { sag = 0.6, bulbs = 12 } = {}) {
+  const g = new THREE.Group();
+  const mid = a.clone().lerp(b, 0.5);
+  mid.y -= sag * 2; // a quadratic curve only gets half way to its control point
+  const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+  const cable = mesh(new THREE.TubeGeometry(curve, 20, 0.014, 4), mat('#2a2018'), { cast: false });
+  g.add(cable);
+  const bulbMat = mat('#fff1c4', { emissive: '#ffcf6a', emissiveIntensity: 3.2, flat: false });
+  for (let i = 1; i < bulbs; i++) {
+    const p = curve.getPoint(i / bulbs);
+    const bulb = mesh(new THREE.SphereGeometry(0.06, 6, 4), bulbMat, { cast: false });
+    bulb.position.set(p.x, p.y - 0.07, p.z);
+    g.add(bulb);
+  }
+  return g;
+}
+
+// The grassy island: rocky skirt from under the water, a band of soil, a grass top just below deck
+// height (so a boardwalk can rest on it), a sandy clearing and boulders round the shore. Built
+// around its own centre; `deckY` is the height people walk at.
+export function grassIsland(radius, deckY, { clearing = { x: 0, z: 0, r: 2.6 }, path = null } = {}) {
+  const g = new THREE.Group();
+  const wobble = (a, k) => 1 + Math.sin(a * 3 + k) * 0.035 + Math.sin(a * 7 + k * 2) * 0.025;
+  const jagged = (geo, k, amount = 1) => {
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const a = Math.atan2(z, x);
+      const f = 1 + (wobble(a, k) - 1) * amount;
+      pos.setX(i, x * f);
+      pos.setZ(i, z * f);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  };
+  const rockH = deckY + 1.2;
+  const rock = mesh(jagged(new THREE.CylinderGeometry(radius + 0.35, radius + 1.1, rockH, 24, 2), 1.3, 2), mat('#7c8796'));
+  rock.position.y = deckY - 0.3 - rockH / 2;
+  // the soil band's top stays below the grass top, so the two never fight over the same pixels
+  const soil = mesh(jagged(new THREE.CylinderGeometry(radius + 0.18, radius + 0.32, 0.34, 24), 1.3), mat('#8a6646'));
+  soil.position.y = deckY - 0.26;
+  const grass = mesh(jagged(new THREE.CylinderGeometry(radius + 0.06, radius + 0.16, 0.16, 24), 1.3), mat('#74bf57'));
+  grass.position.y = deckY - 0.12;
+  g.add(rock, soil, grass);
+
+  // sand drawn on top of the grass; polygon offset keeps it from flickering against it
+  const sand = new THREE.MeshStandardMaterial({ color: '#e2c48e', roughness: 0.95, flatShading: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const clear = mesh(jagged(new THREE.CircleGeometry(clearing.r, 18).rotateX(-Math.PI / 2), 4.1, 3), sand, { cast: false });
+  clear.position.set(clearing.x, deckY - 0.039, clearing.z);
+  g.add(clear);
+  if (path) {
+    const strip = mesh(new THREE.PlaneGeometry(path.w, path.len).rotateX(-Math.PI / 2), sand, { cast: false });
+    strip.position.set(path.x, deckY - 0.039, path.z);
+    g.add(strip);
+  }
+
+  // boulders round the shore, some poking up beside the grass
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2 + Math.sin(i * 12.9) * 0.08;
+    const size = 0.55 + ((i * 37) % 10) / 18;
+    const r = radius + 0.35 + ((i * 53) % 7) / 12;
+    const b = mesh(new THREE.DodecahedronGeometry(size, 0), mat(i % 3 === 0 ? '#8e98a6' : i % 3 === 1 ? '#6f7987' : '#9aa2ad'));
+    b.position.set(Math.cos(a) * r, 0.15 + ((i * 29) % 9) / 10 * (deckY - 0.9), Math.sin(a) * r);
+    b.rotation.set(i * 1.7, i * 2.3, i * 0.9);
+    b.scale.y = 0.75;
+    g.add(b);
+  }
   return g;
 }
