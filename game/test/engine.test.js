@@ -337,3 +337,36 @@ test('exchange: at most 30 fish per wallet in any 24 hours, rarest first', () =>
   const tomorrow = engine.exchange(p, left, 1_000 * SOL, { ...opts, now: T0 + DAY });
   assert.equal(tomorrow.items.length, 2);
 });
+
+test('prize wheel: one free spin a day, then 1,000 gold; prizes go straight in', () => {
+  const { WHEEL } = rules;
+  const at = (id) => { // an rng that lands on the given prize
+    let before = 0;
+    for (const z of WHEEL.prizes) { if (z.id === id) break; before += z.chance; }
+    const pick = (before + 0.5) / 100;
+    return () => pick;
+  };
+  assert.equal(WHEEL.prizes.reduce((s, z) => s + z.chance, 0), 100);
+  assert.equal(WHEEL.prizes.find((z) => z.id === 'wheel_rod').chance, 1);
+  assert.equal(RODS_BY_ID.wheel.luck, 65);
+
+  const p = engine.newProfile('tester', T0);
+  const first = engine.spin(p, T0, at('gold1000'));
+  assert.deepEqual([first.free, first.cost, first.gold], [true, 0, 1000]);
+  assert.equal(p.cash, 1000);
+  assert.ok(engine.publicProfile(p, T0 + 1000).freeSpinInMs > 0);
+
+  const paid = engine.spin(p, T0 + 1000, at('wheel_rod'));
+  assert.deepEqual([paid.free, paid.cost, paid.item], [false, 1000, 'wheel']);
+  assert.equal(p.cash, 0);
+  assert.equal(p.rod, 'wheel');
+  assert.equal(engine.currentLuck(p), 65);
+  assert.throws(() => engine.spin(p, T0 + 2000, at('gold250')), { code: 'broke' });
+
+  const again = engine.spin(p, T0 + DAY, at('wheel_rod')); // the next free spin, and a second Wheel Rod
+  assert.deepEqual([again.free, again.duplicate, again.gold], [true, true, WHEEL.ownedWheelRodGold]);
+  const bait = engine.spin(p, T0 + DAY + 1, at('moonjig'));
+  assert.equal(bait.item, 'moonjig');
+  assert.equal(p.baits.moonjig, 10);
+  assert.throws(() => engine.find(p, 'wheel'), { code: 'not_found' }, 'the Wheel Rod cannot be "found"');
+});

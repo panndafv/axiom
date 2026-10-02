@@ -963,3 +963,62 @@ body.touch .bottom-hint, body.touch .key-hints { display: none; }
 .paused-card .big { font-family: var(--display); font-size: 30px; color: var(--orange); letter-spacing: 0.06em; }
 .paused-card p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; }
 .paused-card p.small { font-size: 12px; color: var(--muted); }
+
+/* ------------------------------------------------------------------ prize wheel */
+
+.modal.wheel-modal { --accent: #ffd34d; width: min(700px, 100%); }
+.wheel-panel { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: center; }
+.wheel-svg { display: block; width: 100%; max-width: 280px; margin: 0 auto; filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.45)); }
+.wheel-svg .wheel-frame { fill: #5a3a22; stroke: #d9a441; stroke-width: 3; }
+.wheel-svg .wheel-edge { fill: none; stroke: #3a2418; stroke-width: 2; }
+.wheel-svg .wheel-rot path { stroke: #3a2418; stroke-width: 1.2; }
+.wheel-svg .wheel-shade { fill: none; stroke: rgba(40, 20, 10, 0.18); stroke-width: 14; }
+.wheel-svg .wheel-peg { fill: #fff1dc; stroke: #3a2418; stroke-width: 0.8; }
+.wheel-svg .wheel-hub { fill: #fff1dc; stroke: #3a2418; stroke-width: 2; }
+.wheel-svg .wheel-cap { fill: #d9a441; stroke: #3a2418; stroke-width: 1.5; }
+.wheel-svg .wheel-pointer { fill: #d8453c; stroke: #3a2418; stroke-width: 1.5; stroke-linejoin: round; }
+.wheel-svg .wheel-label {
+  font-family: var(--display);
+  fill: #2a1810;
+  stroke: rgba(255, 248, 230, 0.85);
+  stroke-width: 2.4px;
+  paint-order: stroke;
+}
+.wheel-svg .wheel-star { fill: #fff27a; stroke: #3a2418; stroke-width: 0.8px; paint-order: stroke; }
+.wheel-svg .bulb { fill: #fff1c4; animation: wheel-bulb 1s steps(1) infinite; }
+.wheel-svg .bulb.b { animation-delay: -0.5s; }
+.wheel-svg.spinning .bulb { animation-duration: 0.22s; }
+.wheel-svg.spinning .bulb.b { animation-delay: -0.11s; }
+@keyframes wheel-bulb {
+  0% { fill: #fff6c8; filter: drop-shadow(0 0 3px #ffcf6a); }
+  50% { fill: #8a6a3a; filter: none; }
+}
+.wheel-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.wheel-result {
+  min-height: 74px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 211, 77, 0.35);
+}
+.wheel-result .big { font-family: var(--display); font-size: 24px; letter-spacing: 0.03em; color: var(--gold); }
+.wheel-result .big.muted { color: var(--muted); }
+.wheel-result .line { font-size: 13px; color: var(--ink); margin-top: 2px; line-height: 1.4; }
+.wheel-result.bait .big { color: var(--green); }
+.wheel-result.rod .big { color: var(--orange); }
+.wheel-result.jackpot { border-color: #ff6fcf; background: rgba(255, 111, 207, 0.1); }
+.wheel-result.jackpot .big { color: #ff6fcf; text-shadow: 0 0 12px rgba(255, 111, 207, 0.6); }
+.wheel-btn { align-self: flex-start; padding: 10px 22px; font-size: 17px; border-radius: 8px; font-family: var(--display); letter-spacing: 0.06em; }
+.wheel-side .note { margin: 0; }
+.wheel-side h3 { margin: 6px 0 0; }
+.wheel-odds { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; font-size: 12.5px; }
+.wheel-odds .odd { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 6px 10px; border-radius: 7px; background: rgba(58, 42, 33, 0.55); }
+.wheel-odds .odd.jackpot { box-shadow: inset 0 0 0 1.5px rgba(255, 111, 207, 0.55); color: #ff9ae0; font-weight: 700; }
+.wheel-odds .dot { flex: none; width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.wheel-odds .pct { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .wheel-panel { grid-template-columns: 1fr; gap: 12px; }
+  .wheel-svg { max-width: 210px; }
+  .wheel-btn { align-self: stretch; }
+  .wheel-odds { grid-template-columns: 1fr; }
+}

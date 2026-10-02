@@ -117,6 +117,7 @@ export const sfx = {
     tone(380, 0.1, { gain: 0.25, to: 120, delay: 0.14 });
     tone(1320, 0.18, { type: 'triangle', gain: 0.12, delay: 0.05 });
   },
+  wheelTick() { tone(1250 + Math.random() * 120, 0.022, { type: 'square', gain: 0.03 }); },
   reelTick() { tone(1800 + Math.random() * 300, 0.025, { type: 'square', gain: 0.025 }); },
   splash() { noise(0.4, { gain: 0.3, freq: 1400, to: 400, q: 0.6 }); },
   snap() {

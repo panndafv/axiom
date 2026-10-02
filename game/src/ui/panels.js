@@ -1,9 +1,9 @@
-import { h, fmt } from './dom.js';
+import { h, svg, fmt } from './dom.js';
 import { fishIcon, rodIcon, baitIcon, outfitIcon, haloIcon } from './icons.js';
 import { CONFIG } from '../config.js';
 import {
-  GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, BAITS, OUTFITS, HALOS, HALOS_BY_ID, rarityOdds, speciesOdds,
-  speciesPoolPct, fishValue, sellPrice, SHIRT_COLORS,
+  GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, RODS_BY_ID, BAITS, BAITS_BY_ID, OUTFITS, HALOS, HALOS_BY_ID, rarityOdds, speciesOdds,
+  speciesPoolPct, fishValue, sellPrice, SHIRT_COLORS, WHEEL,
 } from '../../shared/rules.js';
 import { shortAddress, isMobile, phantomDeepLink } from '../net/wallet.js';
 import { sfx } from '../game/audio.js';
@@ -90,6 +90,9 @@ export function createPanels(app) {
           h('b', { style: { color: '#ff7ad9' } }, 'RAINBOW CAST'), ' with 5× luck. The counters at the bottom of the screen show how close the next one is.'),
         h('h3', 'Halos'),
         h('p', 'Halos float over your head and add 5% to 35% to the gold every fish sells for. Find them in the halos tab at the ⚓ shop. What you have on (rod, bait, halo) shows at the top right.'),
+        h('h3', 'The prize wheel'),
+        h('p', `Out on the island, across the campfire from the scoreboard. Your first spin every day is free, then each spin is ✦${fmt.int(WHEEL.cost)}. It pays out gold, bait and rods, and 1 spin in 100 lands on the `,
+          h('b', { style: { color: '#ff6fcf' } }, 'WHEEL ROD'), ` (🍀 +${RODS_BY_ID.wheel.luck} luck), which you can't buy anywhere.`),
         h('h3', 'Lobbies'),
         h('p', 'Up to 25 anglers share a pier. When someone in your lobby lands an Epic or rarer fish, everyone hears about it.'),
         h('h3', 'The reward pool'),
@@ -106,7 +109,7 @@ export function createPanels(app) {
             : `Cash-ins add to your claimable SOL. Claim it at the chest (min ${fmt.sol(GAME.minClaimLamports, 2)}) and it is sent to your wallet; the reward pool shows each payout's Solscan transaction once it has gone out.`),
         h('h3', 'On the deck'),
         h('p', kbd('W'), kbd('A'), kbd('S'), kbd('D'), ' walk · mouse or arrows look (click to grab the mouse) · ', kbd('Shift'), ' run · ', kbd('E'),
-          ' interact (pier edge, shop, rod rack, fish rack, scores, reward chest) · ', kbd('E'), ' stop fishing · ', kbd('V'), ' view · ', kbd('P'), ' profile · ', kbd('M'), ' mute · ⌂ HOME (top left) comes back to the title.'),
+          ' interact (pier edge, shop, rod rack, fish rack, scores, prize wheel, reward chest) · ', kbd('E'), ' stop fishing · ', kbd('V'), ' view · ', kbd('P'), ' profile · ', kbd('M'), ' mute · ⌂ HOME (top left) comes back to the title.'),
       ],
     });
   }
@@ -376,9 +379,9 @@ export function createPanels(app) {
               return h('div.card.locked',
                 rodIcon(r, { dim: true }),
                 h('div.name', '???'),
-                h('div.blurb', 'Hidden somewhere on the pier. Not for sale.'),
+                h('div.blurb', r.from === 'wheel' ? 'Spin the prize wheel on the island: 1 spin in 100.' : 'Hidden somewhere on the pier. Not for sale.'),
                 h('div.luck', `🍀 +${r.luck} luck`),
-                h('div.foot', h('span.note', '🔒 find it')));
+                h('div.foot', h('span.note', r.from === 'wheel' ? '🔒 win it' : '🔒 find it')));
             }
             return h(`div.card${eq ? '.equipped' : ''}${owned ? '' : '.locked'}`,
               { style: { cursor: owned && !eq ? 'pointer' : 'default' }, on: { click: () => { if (owned && !eq) act(() => app.call('equip', 'rod', r.id)); } } },
@@ -450,6 +453,201 @@ export function createPanels(app) {
                 h('td.cash', `✦${fmt.int(r.caught)}`), h('td', fmt.int(r.landed)))))
             : h('div.empty', 'No catches yet. Be the first.'),
         ];
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------------------- prize wheel
+  const WHEEL_TOTAL = WHEEL.prizes.reduce((sum, z) => sum + z.chance, 0);
+  // Each prize's slice, in degrees clockwise from the top.
+  const WHEEL_SLICES = (() => {
+    let a = 0;
+    return WHEEL.prizes.map((z) => {
+      const sweep = (z.chance / WHEEL_TOTAL) * 360;
+      const slice = { from: a, to: a + sweep, mid: a + sweep / 2, sweep };
+      a += sweep;
+      return slice;
+    });
+  })();
+  const rodName = (rod) => (/rod$/i.test(rod.name) ? rod.name : `${rod.name} rod`);
+
+  // The wheel drawn in SVG, the same layout as the one on the island. Its .wheel-rot group turns.
+  function wheelSvg() {
+    const R = 100;
+    const pt = (deg, r = R) => {
+      const a = (deg * Math.PI) / 180;
+      return `${(Math.sin(a) * r).toFixed(2)} ${(-Math.cos(a) * r).toFixed(2)}`;
+    };
+    const slices = WHEEL.prizes.map((z, i) => {
+      const s = WHEEL_SLICES[i];
+      const label = s.sweep > 12
+        ? `<text transform="rotate(${s.mid.toFixed(2)}) translate(0 ${-R + 8}) rotate(-90)" text-anchor="end" dominant-baseline="central"
+             font-size="${Math.min(11.5, s.sweep * 0.42).toFixed(1)}" class="wheel-label">${z.label}</text>`
+        : `<text transform="rotate(${s.mid.toFixed(2)}) translate(0 ${-R + 10})" text-anchor="middle" dominant-baseline="central"
+             font-size="10" class="wheel-star">★</text>`;
+      return `<path d="M0 0 L${pt(s.from)} A${R} ${R} 0 ${s.sweep > 180 ? 1 : 0} 1 ${pt(s.to)} Z" fill="${z.color}"/>${label}`;
+    }).join('');
+    const pegs = WHEEL_SLICES.map((s) => `<circle cx="${pt(s.from, R - 3).split(' ')[0]}" cy="${pt(s.from, R - 3).split(' ')[1]}" r="2.3" class="wheel-peg"/>`).join('');
+    const bulbs = Array.from({ length: 24 }, (_, i) => {
+      const [x, y] = pt(i * 15, 107).split(' ');
+      return `<circle cx="${x}" cy="${y}" r="3" class="bulb${i % 2 ? ' b' : ''}"/>`;
+    }).join('');
+    return svg(`
+      <svg class="wheel-svg" viewBox="-118 -124 236 242" aria-hidden="true">
+        <circle r="113" class="wheel-frame"/>
+        <g class="wheel-rot">
+          ${slices}
+          <circle r="${R}" class="wheel-edge"/>
+          <circle r="${R - 7}" class="wheel-shade"/>
+          ${pegs}
+          <circle r="20" class="wheel-hub"/>
+        </g>
+        ${bulbs}
+        <circle r="8" class="wheel-cap"/>
+        <path d="M-10 -122 L10 -122 L0 -95 Z" class="wheel-pointer"/>
+      </svg>`);
+  }
+
+  function wheelPrizeLine(res) {
+    const z = WHEEL.prizes.find((x) => x.id === res.prize);
+    if (z.kind === 'gold') return { kind: 'gold', big: `✦ ${fmt.int(res.gold)} gold`, line: 'Straight into your purse.' };
+    if (z.kind === 'bait') {
+      const b = BAITS_BY_ID[z.item];
+      return { kind: 'bait', big: `${b.pack} × ${b.name}`, line: `🍀 +${b.luck} luck bait, in your tackle box.` };
+    }
+    const rod = RODS_BY_ID[z.item];
+    if (res.duplicate) {
+      return { kind: 'gold', big: `✦ ${fmt.int(res.gold)} gold`, line: `${rodName(rod)}! You already have it, so here's gold instead.` };
+    }
+    return { kind: z.item === 'wheel' ? 'jackpot' : 'rod', big: rodName(rod), line: `🍀 +${rod.luck} luck. It's on your rod rack now.` };
+  }
+
+  function wheel() {
+    const disc = wheelSvg(); // kept across re-renders so a spin is never interrupted
+    const rot = disc.querySelector('.wheel-rot');
+    let angle = 0; // degrees clockwise
+    let spinning = false;
+    let result = null;
+    let raf = 0;
+    let lastSlice = -1;
+    let closed = false;
+    let finish = null; // shows the prize; run when the wheel stops, or at once if the panel closes
+    const setAngle = (a) => {
+      angle = a;
+      rot.setAttribute('transform', `rotate(${(a % 360).toFixed(2)})`);
+      // a tick each time a peg passes the pointer
+      const under = ((-a % 360) + 360) % 360;
+      const slice = WHEEL_SLICES.findIndex((sl) => under >= sl.from && under < sl.to);
+      if (slice !== lastSlice && lastSlice !== -1) sfx.wheelTick();
+      lastSlice = slice;
+    };
+    setAngle(Math.random() * 360);
+    // the free spin comes back once a day: count down from when the profile arrived
+    const freeIn = () => Math.max(0, (p().freeSpinInMs ?? 0) - (Date.now() - (app.profileAt || Date.now())));
+    const clock = setInterval(() => { if (!spinning) rerender(); }, 20_000);
+
+    async function go() {
+      if (spinning) return;
+      spinning = true;
+      result = null;
+      disc.classList.add('spinning');
+      rerender();
+      sfx.click();
+      // spin flat out while the server picks the prize, then ease into it
+      const speed = 600; // degrees a second
+      let last = performance.now();
+      let target = null;
+      const frame = (now) => {
+        if (!target) {
+          setAngle(angle + speed * Math.min(0.05, (now - last) / 1000));
+        } else {
+          const k = Math.min(1, (now - target.start) / target.ms);
+          setAngle(target.from + (target.to - target.from) * (1 - (1 - k) ** 3));
+          if (k >= 1) { finish(); return; }
+        }
+        last = now;
+        raf = requestAnimationFrame(frame);
+      };
+      raf = requestAnimationFrame(frame);
+
+      let call;
+      try {
+        call = await app.callLater('spin');
+      } catch (err) {
+        cancelAnimationFrame(raf);
+        spinning = false;
+        disc.classList.remove('spinning');
+        sfx.error();
+        app.toast(err.message, 'error');
+        rerender();
+        return;
+      }
+      const index = WHEEL.prizes.findIndex((z) => z.id === call.res.prize);
+      const sl = WHEEL_SLICES[index];
+      const aim = sl.mid + (Math.random() - 0.5) * sl.sweep * 0.6; // somewhere inside the slice
+      const min = angle + 720; // at least two more turns
+      const to = min + ((((-aim - min) % 360) + 360) % 360);
+      // a cubic ease starts at 3x its average speed: match the speed it is already turning at
+      const ms = (3 * (to - angle) / speed) * 1000;
+      target = { from: angle, to, start: performance.now(), ms };
+      app.world?.spinWheel?.(index, ms / 1000);
+      finish = () => {
+        finish = null;
+        spinning = false;
+        disc.classList.remove('spinning');
+        result = wheelPrizeLine(call.res);
+        if (result.kind === 'jackpot') {
+          sfx.land(5);
+          app.toast(`★ You won the WHEEL ROD: +${RODS_BY_ID.wheel.luck} luck!`, 'good');
+        } else {
+          if (result.kind === 'rod') sfx.land(3);
+          else sfx.coins();
+          if (closed) app.toast(`Prize wheel: ${result.big}`, 'good');
+        }
+        call.apply(); // shows the prize in your purse / tackle box, and re-renders
+      };
+      if (closed) finish();
+    }
+
+    open('wheel', {
+      title: 'Prize wheel',
+      cls: 'wheel-modal',
+      headExtra: () => h('span', { style: { marginLeft: 'auto', fontSize: '14px' } }, h('span.cash', `✦ ${fmt.int(p().cash)} gold`)),
+      onClose: () => {
+        closed = true;
+        clearInterval(clock);
+        cancelAnimationFrame(raf);
+        finish?.();
+      },
+      render: () => {
+        const pr = p();
+        const wait = freeIn();
+        const free = wait <= 0;
+        const broke = !free && pr.cash < WHEEL.cost;
+        const left = Math.max(1, Math.ceil(wait / 60_000)); // minutes
+        const hrs = Math.floor(left / 60), mins = left % 60;
+        return h('div.wheel-panel',
+          disc,
+          h('div.wheel-side',
+            h(`div.wheel-result${result ? `.${result.kind}` : ''}`,
+              spinning ? h('div.big.muted', 'Spinning…')
+                : result ? [h('div.big', result.big), h('div.line', result.line)]
+                  : [h('div.big', free ? 'Free spin ready' : 'Feeling lucky?'), h('div.line', 'Gold, bait and rods. The Wheel Rod (🍀 +65 luck) is 1 spin in 100.')]),
+            h('button.pill-btn.wheel-btn', { disabled: spinning || broke, on: { click: go } },
+              free ? 'FREE SPIN' : `SPIN · ✦${fmt.int(WHEEL.cost)}`),
+            h('p.note', free
+              ? 'One free spin every day. After that, a spin costs ✦1,000.'
+              : `Next free spin in ${hrs ? `${hrs}h ${mins}m` : `${mins}m`}${broke ? ` · you need ✦${fmt.int(WHEEL.cost - pr.cash)} more gold for a paid spin` : ''}`),
+            h('h3', 'Odds'),
+            h('div.wheel-odds', WHEEL.prizes.map((z) => {
+              const owned = z.kind === 'rod' && pr.rods.includes(z.item);
+              return h(`div.odd${z.item === 'wheel' ? '.jackpot' : ''}`,
+                h('span.dot', { style: { background: z.color } }),
+                h('span', z.kind === 'rod' ? rodName(RODS_BY_ID[z.item]) : z.kind === 'bait' ? `${BAITS_BY_ID[z.item].pack} × ${BAITS_BY_ID[z.item].name}` : `✦${fmt.int(z.amount)} gold`,
+                  owned ? h('span.muted', ` (owned: ✦${fmt.int(z.item === 'wheel' ? WHEEL.ownedWheelRodGold : Math.round(RODS_BY_ID[z.item].price / 2))})`) : null),
+                h('span.pct', `${z.chance}%`));
+            }))),
+        );
       },
     });
   }
@@ -671,7 +869,7 @@ export function createPanels(app) {
   }
 
   return {
-    howTo, rack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, noWallet,
+    howTo, rack, shop, rods, catchLog, leaderboard, wheel, profile, pool, settings, credits, noWallet,
     close, rerender,
     get open() { return current?.name || null; },
   };

@@ -97,6 +97,12 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
   Press E at the lighthouse door (the prompt only appears when you stand there), walk round the
   gallery and take it. The server only hands it to a wallet whose player is up the lighthouse in a
   lobby at that moment.
+- **The prize wheel** stands on the island, across the campfire from the scoreboard. One free spin
+  every 24 hours, then ✦1,000 a spin. Prizes are gold (✦250 to ✦2,500), bait packs and rods; a rod
+  you already own pays half its shop price in gold instead. 1 spin in 100 wins the **Wheel Rod**
+  (+65 luck), which is not for sale. The server rolls the prize; odds are `WHEEL` in `rules.js`.
+  A paid spin returns roughly ✦600 to ✦700 of value on average (gold, plus the shop price of the
+  bait and rods), so it is a gold sink with a lottery ticket attached.
 - **Cash-ins** pay a fixed percentage of whatever is in the pool at that moment, so the pool can
   never be drained to zero, and more players just means smaller slices. Before a wallet can cash in:
   - it must hold at least `MIN_HOLD_USD` of the token, checked live on-chain with the price from

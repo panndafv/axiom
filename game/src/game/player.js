@@ -171,17 +171,25 @@ export function createPlayer(scene, camera, world, input, settings) {
     return world.edgeSpot(state.pos.x, state.pos.z);
   }
 
-  // How far along head → camera the camera can go before it would be inside the lighthouse
-  // (1 = all the way). The tower on the deck, the lamp room and its roof at the top.
-  function towerReach(a, b) {
+  // How far along head → camera the camera can go before it would be inside something solid
+  // (1 = all the way): the lighthouse tower on the deck, the lamp room and its roof at the top,
+  // and the huts and boards on the island.
+  function camReach(a, b) {
     const L = world.lighthouse;
-    const hx = a.x - L.x, hz = a.z - L.z, dx = b.x - a.x, dz = b.z - a.z;
-    const R = state.level === 'top' ? Math.min(L.roofR, Math.hypot(hx, hz) - 0.04) : L.towerR;
+    if (state.level === 'top') return circleReach(a, b, L.x, L.z, Math.min(L.roofR, Math.hypot(a.x - L.x, a.z - L.z) - 0.04), Infinity);
+    let reach = circleReach(a, b, L.x, L.z, L.towerR, Infinity);
+    for (const c of world.camBlockers) reach = Math.min(reach, circleReach(a, b, c.x, c.z, c.r, c.top));
+    return reach;
+  }
+
+  // The same for one upright cylinder, ending at height `top` (a camera that passes over it is fine).
+  function circleReach(a, b, cx, cz, R, top) {
+    const hx = a.x - cx, hz = a.z - cz, dx = b.x - a.x, dz = b.z - a.z;
     const A = dx * dx + dz * dz, B = 2 * (hx * dx + hz * dz), C = hx * hx + hz * hz - R * R;
     const disc = B * B - 4 * A * C;
     if (A < 1e-6 || C <= 0 || disc <= 0) return 1;
     const t = (-B - Math.sqrt(disc)) / (2 * A);
-    if (t <= 0 || t >= 1) return 1;
+    if (t <= 0 || t >= 1 || a.y + (b.y - a.y) * t > top) return 1;
     return Math.max(0, t - 0.15 / Math.sqrt(A));
   }
 
@@ -210,9 +218,9 @@ export function createPlayer(scene, camera, world, input, settings) {
           Math.cos(state.camYaw) * Math.cos(state.camPitch),
         ).multiplyScalar(state.level === 'top' ? Math.min(v.dist, 3.4) : v.dist).add(head); // keep close up the lighthouse
         tmpV.y = Math.max(tmpV.y, 0.6);
-        const reach = towerReach(head, tmpV);
+        const reach = camReach(head, tmpV);
         state.camClose = reach < 1 && tmpV.distanceTo(head) * reach < 0.9;
-        if (reach < 1) camPos.lerpVectors(head, tmpV, reach); // never behind the tower or in the lamp room
+        if (reach < 1) camPos.lerpVectors(head, tmpV, reach); // never inside the tower, the lamp room or a hut
         else camPos.lerp(tmpV, 1 - Math.exp(-dt * 12));
         camTarget.lerp(head, 1 - Math.exp(-dt * 16));
       }

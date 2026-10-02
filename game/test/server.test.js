@@ -10,7 +10,7 @@ import path from 'node:path';
 import http from 'node:http';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
-import { poolPayout } from '../shared/rules.js';
+import { poolPayout, WHEEL } from '../shared/rules.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pier-test-'));
 const dist = path.join(tmp, 'dist');
@@ -257,6 +257,30 @@ test('shop: sell, buy and equip', async () => {
 
   const equip = await api('POST', '/api/shop/equip', { token, body: { kind: 'rod', id: 'driftwood' } });
   assert.equal(equip.body.profile.rod, 'driftwood');
+});
+
+test('prize wheel: the free spin, then a paid one, then not enough gold', async () => {
+  const { token, wallet } = await signIn();
+  const free = await api('POST', '/api/wheel/spin', { token });
+  assert.equal(free.status, 200, free.text);
+  assert.equal(free.body.free, true);
+  assert.equal(free.body.cost, 0);
+  assert.ok(WHEEL.prizes.some((z) => z.id === free.body.prize));
+  assert.equal(free.body.profile.spins, 1);
+  assert.ok(free.body.profile.freeSpinInMs > 86_000_000);
+
+  withProfile(wallet, (p) => { p.cash = 1_000; });
+  const paid = await api('POST', '/api/wheel/spin', { token });
+  assert.equal(paid.status, 200, paid.text);
+  assert.equal(paid.body.free, false);
+  assert.equal(paid.body.cost, 1_000);
+  assert.equal(paid.body.profile.cash, paid.body.gold); // the 1,000 went on the spin; gold won (if any) came back
+
+  withProfile(wallet, (p) => { p.cash = 999; });
+  const broke = await api('POST', '/api/wheel/spin', { token });
+  assert.equal(broke.status, 400);
+  assert.equal(broke.body.error, 'broke');
+  assert.equal((await api('POST', '/api/wheel/spin', {})).status, 401);
 });
 
 test('pool: admin deposit, exchange, claim, payout marked paid', async () => {

@@ -167,6 +167,9 @@ const routes = {
     });
   }),
 
+  // the prize wheel on the island
+  'POST /api/wheel/spin': user((wallet) => play(wallet, (p, now) => engine.spin(p, now))),
+
   // name and shirt colour
   'POST /api/profile': user((wallet, { body }) => play(wallet, (p) => engine.customize(p, {
     name: body.name === undefined ? undefined : body.name === null ? null : String(body.name).slice(0, 40),

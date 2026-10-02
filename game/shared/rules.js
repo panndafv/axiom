@@ -66,7 +66,9 @@ export const RODS = [
   { id: 'sunset',     name: 'Sunset',     price: 3_500, luck: 30, reel: 1.14, tolerance: 1.18, color: '#ffae3d', tip: '#ffd36b', glow: '#ffb347', blurb: 'Glowing golden embers.' },
   { id: 'tidecaster', name: 'Tidecaster', price: 8_000, luck: 40, reel: 1.2,  tolerance: 1.25, color: '#3ad6c8', tip: '#9ffcff', glow: '#4ff2e4', blurb: 'Shimmering deep-sea cyan.' },
   // Not for sale: it leans against the lamp room at the top of the lighthouse for whoever climbs up.
-  { id: 'beacon',     name: 'Beacon',     price: null,  luck: 25, reel: 1.22, tolerance: 1.28, color: '#fff1c2', tip: '#ffe27a', glow: '#ffe9a0', hidden: true, blurb: 'Found at the top of the lighthouse.' },
+  { id: 'beacon',     name: 'Beacon',     price: null,  luck: 25, reel: 1.22, tolerance: 1.28, color: '#fff1c2', tip: '#ffe27a', glow: '#ffe9a0', hidden: true, from: 'lighthouse', blurb: 'Found at the top of the lighthouse.' },
+  // Not for sale either: a 1 in 100 prize on the island's wheel.
+  { id: 'wheel',      name: 'Wheel Rod',  price: null,  luck: 65, reel: 1.26, tolerance: 1.32, color: '#ff6fcf', tip: '#fff27a', glow: '#ff9af0', hidden: true, from: 'wheel', blurb: 'Won on the prize wheel: 1 spin in 100.' },
 ];
 
 export const RODS_BY_ID = Object.fromEntries(RODS.map((r) => [r.id, r]));
@@ -139,6 +141,37 @@ export const HALOS_BY_ID = Object.fromEntries(HALOS.map((h) => [h.id, h]));
 // What a fish sells for with this halo on.
 export function sellPrice(value, haloId) {
   return Math.round(value * (1 + (HALOS_BY_ID[haloId]?.gold || 0)));
+}
+
+// The prize wheel on the island: one free spin every 24 hours, then `cost` gold a spin. Prizes are
+// listed in the order they sit round the wheel (clockwise from the top); chances add up to 100 and
+// each slice is drawn as big as its chance. A rod you already own pays half its shop price in gold
+// instead (the Wheel Rod, which has no price, pays `ownedWheelRodGold`).
+export const WHEEL = {
+  cost: 1_000,
+  freeEveryMs: 86_400_000,
+  ownedWheelRodGold: 5_000,
+  prizes: [
+    { id: 'wheel_rod', kind: 'rod',  item: 'wheel',      chance: 1,  label: 'WHEEL ROD',  color: '#ff6fcf' },
+    { id: 'gold250',   kind: 'gold', amount: 250,        chance: 20, label: '✦250',       color: '#c98a4a' },
+    { id: 'glow',      kind: 'bait', item: 'glow',       chance: 12, label: 'Glow Lure',  color: '#7fd65a' },
+    { id: 'gold1000',  kind: 'gold', amount: 1_000,      chance: 12, label: '✦1,000',     color: '#f2b233' },
+    { id: 'bonecaster',kind: 'rod',  item: 'bonecaster', chance: 6,  label: 'Bonecaster', color: '#e6dccb' },
+    { id: 'spinner',   kind: 'bait', item: 'spinner',    chance: 20, label: 'Spinner',    color: '#8fb3cf' },
+    { id: 'gold2500',  kind: 'gold', amount: 2_500,      chance: 4,  label: '✦2,500',     color: '#ffd34d' },
+    { id: 'sunset',    kind: 'rod',  item: 'sunset',     chance: 3,  label: 'Sunset',     color: '#ff8a3d' },
+    { id: 'gold500',   kind: 'gold', amount: 500,        chance: 18, label: '✦500',       color: '#e09a3c' },
+    { id: 'moonjig',   kind: 'bait', item: 'moonjig',    chance: 4,  label: 'Moon Jig',   color: '#b49cff' },
+  ],
+};
+
+export function rollWheel(rng = cryptoRng) {
+  let pick = rng() * WHEEL.prizes.reduce((s, z) => s + z.chance, 0);
+  for (const z of WHEEL.prizes) {
+    pick -= z.chance;
+    if (pick < 0) return z;
+  }
+  return WHEEL.prizes[WHEEL.prizes.length - 1];
 }
 
 export const SHOP = {

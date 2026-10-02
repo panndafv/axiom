@@ -5,7 +5,7 @@
 import {
   GAME, RARITIES, RODS_BY_ID, BAITS_BY_ID, SHOP, SPECIES_BY_ID,
   rollSpecies, rollKg, fishValue, biteDelayMs, minReelMs, speciesPoolPct, speciesPayout, cryptoRng, randomLook,
-  specialCast, boostedLuck, sellPrice, cleanName, SHIRT_COLORS,
+  specialCast, boostedLuck, sellPrice, cleanName, SHIRT_COLORS, WHEEL, rollWheel,
 } from './rules.js';
 
 export class GameError extends Error {
@@ -42,8 +42,10 @@ export function newProfile(id, now = Date.now()) {
     halos: [],
     halo: null,       // halo worn, adds to the gold fish sell for
     casts: 0,         // every 10th cast is golden and every 50th rainbow (see SPECIAL_CASTS)
-    look: randomLook(),
-    name: null,       // chosen name shown to other players; null = short wallet / guest tag // { shirt, hair } colour picks, random per player
+    look: randomLook(), // { shirt, hair } colour picks, random per player
+    name: null,       // chosen name shown to other players; null = short wallet / guest tag
+    freeSpinAt: 0,    // last free spin of the prize wheel (one every 24 hours)
+    spins: 0,         // prize wheel spins, free and paid
     storage: [],      // the backpack, GAME.storageMax fish
     nextFishId: 1,
     log: {},          // speciesId -> { n, maxKg, first }
@@ -204,10 +206,11 @@ export function buy(p, kind, id) {
   return { kind, id, cash: p.cash };
 }
 
-// Picks up a hidden rod (the Beacon at the top of the lighthouse). Free, once.
+// Picks up a rod lying somewhere on the pier (the Beacon at the top of the lighthouse). Free, once.
+// Only rods that are found that way: the Wheel Rod is won on the wheel and nowhere else.
 export function find(p, rodId) {
   const rod = Object.hasOwn(RODS_BY_ID, rodId) ? RODS_BY_ID[rodId] : null;
-  if (!rod?.hidden) throw new GameError('not_found', 'There is nothing to find here.');
+  if (rod?.from !== 'lighthouse') throw new GameError('not_found', 'There is nothing to find here.');
   if (p.rods.includes(rodId)) return { rod: rodId, already: true };
   p.rods.push(rodId);
   if (!p.cast) p.rod = rodId;
@@ -252,6 +255,40 @@ export function customize(p, { name, shirt } = {}) {
     p.look = { ...p.look, shirt };
   }
   return {};
+}
+
+// The prize wheel: free once every 24 hours, otherwise WHEEL.cost gold. The prize goes straight in.
+export function spin(p, now = Date.now(), rng = cryptoRng) {
+  const free = now - (p.freeSpinAt || 0) >= WHEEL.freeEveryMs;
+  if (!free && p.cash < WHEEL.cost) {
+    throw new GameError('broke', `A spin costs ✦${WHEEL.cost}. You need ${WHEEL.cost - p.cash} more gold, or come back for your free spin.`);
+  }
+  if (free) p.freeSpinAt = now;
+  else p.cash -= WHEEL.cost;
+  const prize = rollWheel(rng);
+  const out = { prize: prize.id, free, cost: free ? 0 : WHEEL.cost, gold: 0, item: null, duplicate: false };
+  if (prize.kind === 'gold') {
+    p.cash += prize.amount;
+    out.gold = prize.amount;
+  } else if (prize.kind === 'bait') {
+    const bait = BAITS_BY_ID[prize.item];
+    p.baits[bait.id] = (p.baits[bait.id] || 0) + bait.pack;
+    if (!p.bait) p.bait = bait.id;
+    out.item = bait.id;
+  } else {
+    const rod = RODS_BY_ID[prize.item];
+    if (p.rods.includes(rod.id)) {
+      out.gold = rod.price ? Math.round(rod.price / 2) : WHEEL.ownedWheelRodGold;
+      out.duplicate = true;
+      p.cash += out.gold;
+    } else {
+      p.rods.push(rod.id);
+      if (!p.cast) p.rod = rod.id;
+      out.item = rod.id;
+    }
+  }
+  p.spins = (p.spins || 0) + 1;
+  return out;
 }
 
 // Admin gift: puts an item in a player's profile for free (hidden rods too) and equips it.
@@ -360,6 +397,8 @@ export function publicProfile(p, now = Date.now()) {
     halo: p.halo,
     casts: p.casts,
     name: p.name,
+    spins: p.spins,
+    freeSpinInMs: Math.max(0, (p.freeSpinAt || 0) + WHEEL.freeEveryMs - now),
     look: p.look,
     luck: currentLuck(p),
     storage: p.storage,

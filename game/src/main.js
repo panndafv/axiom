@@ -120,6 +120,7 @@ app.setMuted = (m) => {
 let lastRod = null, lastOutfit = null, lastHalo, lastName;
 function setProfile(p) {
   app.profile = p;
+  app.profileAt = Date.now(); // countdowns in the profile (the free spin) run from here
   const outfitKey = `${p.outfit}:${p.look?.shirt}:${p.look?.hair}`;
   const halo = p.halo || null;
   const name = p.name || null;
@@ -136,23 +137,42 @@ function setProfile(p) {
   panels.rerender();
 }
 
+function applyResult(res) {
+  if (res?.profile) setProfile(res.profile);
+  if (res && 'holding' in res && res.holding) app.holding = res.holding;
+  if (res?.pool) app.poolInfo = res.pool;
+  return res;
+}
+
+async function callFailed(err) {
+  if (err.status === 401 && app.mode === 'wallet') {
+    toast('Your session expired. Connect your wallet again.', 'error');
+    await app.disconnect();
+  }
+  if (err.code === 'hold' && err.holding) app.holding = err.holding;
+  if (err.code === 'maintenance') {
+    CONFIG.maintenance = err.message;
+    app.goHome();
+  }
+}
+
 app.call = async (method, ...args) => {
   try {
-    const res = await app.backend[method](...args);
-    if (res?.profile) setProfile(res.profile);
-    if (res && 'holding' in res && res.holding) app.holding = res.holding;
-    if (res?.pool) app.poolInfo = res.pool;
-    return res;
+    return applyResult(await app.backend[method](...args));
   } catch (err) {
-    if (err.status === 401 && app.mode === 'wallet') {
-      toast('Your session expired. Connect your wallet again.', 'error');
-      await app.disconnect();
-    }
-    if (err.code === 'hold' && err.holding) app.holding = err.holding;
-    if (err.code === 'maintenance') {
-      CONFIG.maintenance = err.message;
-      app.goHome();
-    }
+    await callFailed(err);
+    throw err;
+  }
+};
+
+// Like app.call, but the new profile only shows once apply() is called: the prize wheel keeps the
+// gold hidden until the wheel stops.
+app.callLater = async (method, ...args) => {
+  try {
+    const res = await app.backend[method](...args);
+    return { res, apply: () => applyResult(res) };
+  } catch (err) {
+    await callFailed(err);
     throw err;
   }
 };
@@ -366,6 +386,7 @@ function interact(it) {
     case 'rods': panels.rods(); break;
     case 'rack': panels.rack(); break;
     case 'scores': panels.leaderboard(); break;
+    case 'wheel': panels.wheel(); break;
     case 'portal':
       sfx.open();
       toast(`${it.title} is coming soon. Keep an eye on the pier!`, 'good');
