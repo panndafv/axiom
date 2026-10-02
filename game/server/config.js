@@ -89,6 +89,9 @@ export const config = {
   poolMode: poolWallet ? 'wallet' : 'ledger',
   poolReserveLamports: Math.round(num('POOL_RESERVE_SOL', 0.05) * LAMPORTS_PER_SOL),
   adminKey: str('ADMIN_KEY', ''),
+  // Dev mode only: fake SOL put in an empty test pool at startup, so cash-ins can be tried
+  // without the admin API. Ignored once TOKEN_MINT is set.
+  seedPoolLamports: Math.round(num('SEED_POOL_SOL', 0) * LAMPORTS_PER_SOL),
   corsOrigin: str('CORS_ORIGIN', ''),
   sessionDays: num('SESSION_DAYS', 7),
   staticDir: fromGameDir(str('STATIC_DIR', './dist')),

@@ -1,0 +1,25 @@
+# Render Blueprint for the fishing game in game/ (render.com → New → Blueprint → pick this repo
+# and branch). This is a TEST setup: free plan, fake reward pool, no token mint (every wallet
+# passes the $50 check). The free plan has no disk, so progress resets on each deploy or restart.
+# For launch: switch to a paid plan, add a disk mounted at /opt/render/project/src/game/data,
+# set TOKEN_MINT and SOLANA_RPC_URL, and remove SEED_POOL_SOL and EARN_GATE.
+services:
+  - type: web
+    name: pier-pressure
+    runtime: node
+    plan: free
+    rootDir: game
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SEED_POOL_SOL
+        value: "5"
+      - key: EARN_GATE
+        value: "0"
+      - key: ADMIN_KEY
+        generateValue: true

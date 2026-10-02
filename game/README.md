@@ -126,7 +126,15 @@ the pool.
 
 ## Deploying
 
-One Node process serves both the API and the built client. Any host with a **persistent disk** for
+**Test site on Render (free, a few clicks):** the repo root has a `render.yaml`. On render.com choose
+**New → Blueprint**, pick this repo and the branch the game is on, and click **Apply**. You get an
+`https://…onrender.com` link with a test pool of 5 fake SOL, no earn gate, and the $50 check off.
+The free plan sleeps after 15 idle minutes (the next visit takes about a minute to wake it) and
+starts with a fresh database on every deploy or restart. To use your own domain, open the service's
+**Settings → Custom Domains**, add the domain, and create the DNS record Render shows you at your
+domain registrar.
+
+**For launch,** one Node process serves both the API and the built client. Any host with a **persistent disk** for
 the SQLite file works: a VPS, Fly.io, Railway or Render with a volume. Run it behind HTTPS and set:
 
 - `TOKEN_MINT`, `TOKEN_SYMBOL`, `GAME_NAME`

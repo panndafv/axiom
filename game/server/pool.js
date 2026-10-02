@@ -137,6 +137,16 @@ export function deposit(lamports, now = Date.now()) {
   });
 }
 
+// Puts fake SOL in a test pool that has never been funded. Dev mode (no TOKEN_MINT) and ledger
+// mode only, so it can never touch a real pool. Returns the lamports added.
+export function seedTestPool(lamports) {
+  if (!config.dev || mode() !== 'ledger' || !(lamports > 0)) return 0;
+  const { n } = stmt("SELECT COUNT(*) AS n FROM pool_events WHERE kind = 'deposit'").get();
+  if (n > 0) return 0;
+  deposit(lamports);
+  return lamports;
+}
+
 export function adminState() {
   const r = row();
   const pending = stmt("SELECT COUNT(*) AS count, COALESCE(SUM(lamports), 0) AS lamports FROM payouts WHERE status = 'pending'").get();

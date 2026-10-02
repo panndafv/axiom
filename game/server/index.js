@@ -518,6 +518,7 @@ export function createServer() {
 // Opens the database at dbPath and listens. port 0 picks a free port (handy for tests).
 export async function startServer({ port = config.port, host = config.host, dbPath = config.dbPath, log = true } = {}) {
   openDb(dbPath);
+  const seeded = pool.seedTestPool(config.seedPoolLamports);
   const server = createServer();
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -530,6 +531,7 @@ export async function startServer({ port = config.port, host = config.host, dbPa
     const staticNote = fs.existsSync(config.staticDir) ? `serving ${config.staticDir}` : 'no client build (API only)';
     const devNote = config.dev ? 'ON (no TOKEN_MINT, holding check always passes)' : 'off';
     console.log(`${config.gameName} server at ${url} | pool mode: ${config.poolMode} | dev mode: ${devNote} | ${staticNote}`);
+    if (seeded) console.log(`Test pool seeded with ${seeded / 1e9} fake SOL (SEED_POOL_SOL).`);
   }
   const close = () => new Promise((resolve) => {
     server.close(() => {
