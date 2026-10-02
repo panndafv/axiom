@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { spawnSync } from 'node:child_process';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 import { speciesPayout } from '../shared/rules.js';
@@ -223,4 +224,20 @@ test('a dropped transaction is only sent again once it can no longer land', asyn
   const [paid] = (await api('GET', '/api/payouts', { token: player.token })).body.payouts;
   assert.equal(paid.status, 'paid');
   assert.equal(paid.tx, second);
+});
+
+test('the server refuses to pay real SOL when there is no token mint to check holdings against', () => {
+  const run = (extra) => spawnSync(process.execPath, ['--input-type=module', '-e', "await import('./server/config.js')"], {
+    cwd: new URL('..', import.meta.url),
+    env: { ...process.env, TOKEN_MINT: '', POOL_SECRET_KEY: bs58.encode(poolKp.secretKey), SOLANA_CLUSTER: '', SOLANA_RPC_URL: 'https://mainnet.example', ...extra },
+    encoding: 'utf8',
+  });
+  const mainnet = run({});
+  assert.notEqual(mainnet.status, 0);
+  assert.match(mainnet.stderr, /needs TOKEN_MINT/);
+  assert.ok(!mainnet.stderr.includes(bs58.encode(poolKp.secretKey)), 'the key is never printed');
+  assert.equal(run({ SOLANA_RPC_URL: 'https://api.devnet.solana.com' }).status, 0);
+  assert.equal(run({ TOKEN_MINT: bs58.encode(nacl.sign.keyPair().publicKey) }).status, 0);
+  const bad = run({ POOL_SECRET_KEY: 'not-a-key' });
+  assert.match(bad.stderr, /not a valid wallet secret key/);
 });

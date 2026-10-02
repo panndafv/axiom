@@ -93,6 +93,11 @@ const keyWallet = poolSecretKey ? bs58.encode(poolSecretKey.slice(32)) : '';
 const poolWallet = solanaAddress('POOL_WALLET') || keyWallet;
 if (keyWallet && poolWallet !== keyWallet) throw new Error('POOL_WALLET does not match POOL_SECRET_KEY; set just one of them');
 const solanaRpcUrl = str('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com');
+const solanaCluster = str('SOLANA_CLUSTER', '') || (/devnet/i.test(solanaRpcUrl) ? 'devnet' : 'mainnet');
+// Without a mint every wallet passes the holding check, so real SOL must never pay out that way.
+if (poolSecretKey && !tokenMint && solanaCluster === 'mainnet') {
+  throw new Error('POOL_SECRET_KEY pays real SOL, so it needs TOKEN_MINT set (or a devnet SOLANA_RPC_URL for testing)');
+}
 const dbPath = str('DB_PATH', './data/game.db');
 
 export const config = {
@@ -104,8 +109,8 @@ export const config = {
   tokenMint,
   dev: !tokenMint, // no mint configured: the holding check always passes
   solanaRpcUrl,
-  // Only changes explorer links. Guessed from the RPC URL when not set.
-  solanaCluster: str('SOLANA_CLUSTER', '') || (/devnet/i.test(solanaRpcUrl) ? 'devnet' : 'mainnet'),
+  // Explorer links, and whether real SOL is at stake. Guessed from the RPC URL when not set.
+  solanaCluster,
   minHoldUsd: num('MIN_HOLD_USD', 30),
   earnGate: num('EARN_GATE', 1500),
   poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
