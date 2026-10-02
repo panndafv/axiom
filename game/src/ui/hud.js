@@ -1,0 +1,256 @@
+import * as THREE from 'three';
+import { h, fmt } from './dom.js';
+import { fishIcon } from './icons.js';
+import { CONFIG } from '../config.js';
+import { RARITIES, SPECIES_BY_ID, BAITS_BY_ID } from '../../shared/rules.js';
+import { shortAddress } from '../net/wallet.js';
+
+const tmp = new THREE.Vector3();
+const touch = () => document.body.classList.contains('touch');
+
+export function createHud(app) {
+  const ui = document.getElementById('ui');
+  const labelsLayer = document.getElementById('labels');
+
+  // ------------------------------------------------------------------ deck HUD
+  const cash = h('span.hud-cash');
+  const best = h('span.hud-best');
+  const unlockNum = h('span.num');
+  const unlockOf = h('span');
+  const unlockBar = h('i');
+  const sub = h('div.hud-sub', 'lifetime cash · sell fish at the rack to fill it');
+  const status = h('div');
+  const bait = h('div.hud-bait');
+  const deck = h('div.hud',
+    h('div.hud-buttons',
+      h('button.hud-btn', { on: { click: () => app.open('profile') } }, '👤 PROFILE (P)'),
+      h('button.hud-btn.orange', { on: { click: () => app.goHome() } }, '⌂ HOME'),
+    ),
+    h('div.hud-card',
+      h('div.hud-row', cash, best),
+      h('div.hud-unlock', 'POOL UNLOCK ', unlockNum, unlockOf),
+      h('div.bar', unlockBar),
+      sub,
+      bait,
+      status,
+    ),
+  );
+  const hint = h('div.bottom-hint.passive');
+  const root = h('div.passive', { style: { position: 'absolute', inset: '0' } }, hint);
+  deck.style.pointerEvents = 'auto';
+  root.append(deck);
+  root.style.display = 'none';
+  ui.append(root);
+
+  function renderDeck() {
+    const p = app.profile;
+    if (!p) return;
+    cash.textContent = `✦ ${fmt.int(p.cash)} CASH`;
+    best.textContent = `BEST ${fmt.int(p.best)}`;
+    const gate = CONFIG.earnGate;
+    unlockNum.textContent = fmt.int(Math.min(p.lifetimeCash, gate));
+    unlockOf.textContent = ` / ${fmt.int(gate)}`;
+    unlockBar.style.width = `${Math.min(100, (p.lifetimeCash / Math.max(1, gate)) * 100)}%`;
+    const b = p.bait && BAITS_BY_ID[p.bait];
+    bait.textContent = b ? `🪱 ${b.name} on the hook · ${p.baits[p.bait]} casts · +${b.luck} luck` : '';
+    status.className = '';
+    if (app.mode === 'guest') {
+      status.className = 'hud-warn';
+      status.textContent = `guest · connect a wallet on the title to earn from the pool`;
+    } else {
+      const hold = app.holding;
+      if (hold?.ok) {
+        status.className = 'hud-ok';
+        status.textContent = `${shortAddress(app.session?.wallet)} · holding ${hold.dev ? '(dev mode)' : fmt.usd(hold.usd)} of $${CONFIG.tokenSymbol} ✓`;
+      } else {
+        status.className = 'hud-warn';
+        status.textContent = `${shortAddress(app.session?.wallet)} · hold $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} to cash in fish`;
+      }
+    }
+    if (p.lifetimeCash >= gate) sub.textContent = 'pool unlocked · cash in rare fish at the rack or the chest';
+  }
+
+  // ------------------------------------------------------------------ world labels
+  const labels = new Map();
+  function ensureLabels() {
+    for (const it of app.world.interactables) {
+      if (labels.has(it.id)) continue;
+      const el = h('div.world-label',
+        h('div.t', { style: { color: it.color } }, `${it.icon} ${it.title}`),
+        h('div.h', it.hint),
+      );
+      labelsLayer.append(el);
+      labels.set(it.id, el);
+    }
+  }
+
+  function updateLabels(camera, near, visible) {
+    ensureLabels();
+    const w = window.innerWidth, hgt = window.innerHeight;
+    for (const it of app.world.interactables) {
+      const el = labels.get(it.id);
+      if (!visible) { el.style.display = 'none'; continue; }
+      tmp.copy(it.pos);
+      tmp.y += 2.7;
+      const dist = tmp.distanceTo(camera.position);
+      tmp.project(camera);
+      if (tmp.z > 1 || dist > 60) { el.style.display = 'none'; continue; }
+      el.style.display = '';
+      el.style.left = `${((tmp.x + 1) / 2) * w}px`;
+      el.style.top = `${((1 - tmp.y) / 2) * hgt}px`;
+      const isNear = near === it;
+      el.classList.toggle('near', isNear);
+      const scale = THREE.MathUtils.clamp(14 / dist, 0.45, 1.15);
+      el.style.transform = `translate(-50%, -100%) scale(${isNear ? Math.max(1, scale) : scale})`;
+      el.style.opacity = isNear ? 1 : THREE.MathUtils.clamp(1.4 - dist / 45, 0.35, 0.95);
+    }
+  }
+
+  // ------------------------------------------------------------------ fishing HUD
+  const oilBar = h('i');
+  const oilSecs = h('span.secs');
+  const oil = h('div.oil', '🏮', h('div.bar', oilBar), oilSecs);
+  const strList = h('div');
+  const strMult = h('span.mult');
+  const strScore = h('div.score');
+  const strLuck = h('div.luck');
+  const stringer = h('div.stringer', h('div.head', h('span', 'STRINGER'), strMult), strList, strScore, strLuck);
+  const prompt = h('div.prompt');
+  const last = h('div.last-catch');
+  const progBar = h('i');
+  const tenBar = h('i');
+  const reelTag = h('span');
+  const reel = h('div.reel',
+    h('div.lbl', h('span', 'LINE IN'), reelTag),
+    h('div.bar.progress', progBar),
+    h('div.lbl', h('span', 'TENSION'), h('span', 'release to bleed it')),
+    h('div.bar.tension', tenBar),
+  );
+  reel.style.display = 'none';
+  const fishRoot = h('div.fish-hud', oil, stringer, last, prompt, reel);
+  fishRoot.style.display = 'none';
+  ui.append(fishRoot);
+
+  let revealEl = null;
+  let bannerEl = null;
+
+  const fishing = {
+    show() { fishRoot.style.display = ''; hint.textContent = 'click / [Space] to cast · HOLD to reel · (B) bank · (E) leave'; },
+    hide() { fishRoot.style.display = 'none'; reel.style.display = 'none'; },
+    setOil(msLeft, total) {
+      if (msLeft === null) {
+        oilBar.style.width = '100%';
+        oilSecs.textContent = `${Math.round(total / 1000)}s`;
+        oil.classList.remove('low');
+        return;
+      }
+      oilBar.style.width = `${(msLeft / total) * 100}%`;
+      oilSecs.textContent = `${Math.ceil(msLeft / 1000)}s`;
+      oil.classList.toggle('low', msLeft < 15000);
+    },
+    setRun(run, profile) {
+      strList.replaceChildren();
+      const fish = run?.stringer || [];
+      if (!fish.length) strList.append(h('div', { style: { color: 'var(--muted)' } }, run ? 'nothing yet — cast!' : 'cast to light the lantern'));
+      for (const f of fish.slice(-8)) {
+        const sp = SPECIES_BY_ID[f.sp];
+        strList.append(h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${f.value}`)));
+      }
+      if (fish.length > 8) strList.append(h('div', { style: { color: 'var(--muted)' } }, `+${fish.length - 8} more`));
+      const base = fish.reduce((s, f) => s + f.value, 0);
+      strMult.textContent = `×${(run?.mult || 1).toFixed(2)}`;
+      strScore.replaceChildren(h('span', `run ${fmt.int(run?.score || 0)}`), h('span.cash', fish.length ? `bank ✦${Math.round(base * run.mult)}` : ''));
+      const b = profile?.bait && BAITS_BY_ID[profile.bait];
+      strLuck.textContent = `🍀 luck ${profile?.luck ?? 0}${b ? ` (${b.name} ×${profile.baits[profile.bait]})` : ''}`;
+    },
+    setPrompt(state, { mult, stringer: n }) {
+      prompt.replaceChildren();
+      const add = (...els) => prompt.append(...els.filter(Boolean));
+      if (state === 'idle') {
+        add(
+          h('div.big', 'CAST A LINE'),
+          touch() ? h('div.line', 'tap to cast out') : h('div.line', 'click / ', h('span.kbd', 'Space'), ' to cast out'),
+          n ? h('div.line', touch() ? 'tap BANK' : ['press ', h('span.kbd', 'B')], ` to bank your haul (×${mult.toFixed(2)})`) : null,
+          touch() ? null : h('div.small', '(E) leave the jetty'),
+        );
+      } else if (state === 'casting' || state === 'waiting') {
+        add(
+          h('div.big', 'WAITING FOR A BITE…'),
+          n ? h('div.line', h('span.kbd', 'B'), ` bank your haul (×${mult.toFixed(2)})`) : null,
+          h('div.small', '(E) leave the jetty'),
+        );
+      } else if (state === 'fighting') {
+        prompt.append(touch()
+          ? h('div.line', 'HOLD the screen to reel · let go when it surges')
+          : h('div.line', 'HOLD ', h('span.kbd', 'Space'), ' / mouse to reel · let go when it surges'));
+        prompt.style.top = '62%';
+        return;
+      }
+      prompt.style.top = '46%';
+    },
+    bite() {
+      prompt.replaceChildren(h('div.alert', '!'));
+      reel.style.display = '';
+    },
+    setReel(prog, ten, surge, holding) {
+      reel.style.display = '';
+      progBar.style.width = `${Math.max(0, prog) * 100}%`;
+      tenBar.style.width = `${Math.min(1, ten) * 100}%`;
+      reel.classList.toggle('surge', surge);
+      reelTag.className = surge ? 'surge-tag' : '';
+      reelTag.textContent = surge ? 'SURGE — LET GO!' : holding ? 'reeling…' : 'hold to reel';
+    },
+    hideReel() { reel.style.display = 'none'; reel.classList.remove('surge'); },
+    cooldown(ms) {
+      const until = performance.now() + ms;
+      const tick = () => {
+        const left = until - performance.now();
+        if (left <= 0) return;
+        prompt.replaceChildren(h('div.big', 'RE-TYING YOUR LINE…'), h('div.line', `${Math.ceil(left / 1000)}s`));
+        prompt.style.top = '46%';
+        setTimeout(tick, 200);
+      };
+      setTimeout(tick, 900);
+    },
+    reveal(sp, fish, isNew) {
+      revealEl?.remove();
+      const r = RARITIES[sp.rarity];
+      revealEl = h('div.reveal', { style: { '--rc': r.color } },
+        fishIcon(sp, 84),
+        h('div',
+          h('div.rar', { style: { color: r.color } }, r.label.toUpperCase(), isNew ? h('span.new', 'NEW') : null),
+          h('div.nm', sp.name),
+          h('div.meta', `${fmt.kg(fish.kg)} · `, h('span.cash', `✦${fish.value}`)),
+        ),
+      );
+      revealEl.style.setProperty('--rc', r.color);
+      fishRoot.append(revealEl);
+      const el = revealEl;
+      setTimeout(() => { el.style.transition = 'opacity 0.4s'; el.style.opacity = '0'; }, 1700);
+      setTimeout(() => el.remove(), 2200);
+    },
+    lastCatch(text, color) {
+      last.textContent = text;
+      last.style.color = color;
+    },
+    banner(text, kind = 'info') {
+      bannerEl?.remove();
+      bannerEl = h(`div.banner.${kind}`, text);
+      fishRoot.append(bannerEl);
+      const el = bannerEl;
+      setTimeout(() => el.remove(), 1500);
+    },
+  };
+
+  return {
+    fishing,
+    render: renderDeck,
+    setMode(mode) {
+      root.style.display = mode === 'walk' || mode === 'fish' || mode === 'sit' ? '' : 'none';
+      deck.style.display = mode === 'fish' ? 'none' : '';
+      if (mode === 'walk') hint.textContent = 'click to look · mouse / ←↑↓→ look · WASD walk · Shift run · V view · E interact · P profile';
+      if (mode === 'sit') hint.textContent = '(E) stand up';
+    },
+    updateLabels,
+  };
+}
