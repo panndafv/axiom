@@ -812,3 +812,22 @@ body.touch .bottom-hint, body.touch .key-hints { display: none; }
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
 }
 .menu-item.primary .badge { display: none; }
+
+/* profile: name and shirt colour */
+.name-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #0f1418;
+  border: 1.5px solid color-mix(in srgb, var(--teal) 45%, transparent);
+  color: #fff4e2;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.name-input:focus { outline: none; border-color: var(--teal); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.swatches .sw { width: 40px; height: 40px; border-radius: 8px; border: 2px solid rgba(255, 255, 255, 0.12); }
+.swatches .sw:hover { transform: translateY(-1px); }
+.swatches .sw.on { border-color: #fff4e2; box-shadow: 0 0 0 2px var(--teal); }

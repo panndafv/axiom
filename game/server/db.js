@@ -168,7 +168,7 @@ export function editProfile(wallet, fn, now = Date.now()) {
 // Leaderboard
 
 export function topScores(limit = 25) {
-  return stmt('SELECT wallet, best, landed FROM profiles WHERE best > 0 ORDER BY best DESC, wallet ASC LIMIT ?')
+  return stmt("SELECT wallet, best, landed, json_extract(data, '$.name') AS name FROM profiles WHERE best > 0 ORDER BY best DESC, wallet ASC LIMIT ?")
     .all(limit);
 }
 

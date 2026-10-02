@@ -80,9 +80,10 @@ export function createRemotes(scene, labelsLayer) {
       const p = players.get(id);
       if (p) applyState(p, s);
     },
-    setLook(id, outfitId, rodId, look, haloId) {
+    setLook(id, outfitId, rodId, look, haloId, name) {
       const p = players.get(id);
       if (!p) return;
+      if (name) p.tag.textContent = name;
       p.char.setOutfit(lookColors(outfitId, look));
       p.char.setRod(RODS_BY_ID[rodId] || RODS_BY_ID.driftwood);
       p.char.setHalo(HALOS_BY_ID[haloId] || null);

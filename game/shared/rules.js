@@ -94,6 +94,14 @@ export const OUTFITS_BY_ID = Object.fromEntries(OUTFITS.map((o) => [o.id, o]));
 export const SHIRT_COLORS = ['#1f6c75', '#b8433a', '#26408b', '#2f6b3a', '#c9952b', '#6a3f8f', '#d0672e', '#c45a86', '#3f86b8', '#3a3f47'];
 export const HAIR_COLORS = ['#d8662a', '#5a3a22', '#1f1a17', '#e6c26a', '#cfc8bb'];
 
+// A player's chosen name: 2 to 16 letters, numbers, spaces and _ . - ' (so nobody can pass
+// for a wallet address like "4t44…E4gb"). Returns the tidied name, or null if it does not fit.
+export function cleanName(name) {
+  if (typeof name !== 'string') return null;
+  const n = name.replace(/\s+/g, ' ').trim();
+  return n.length >= 2 && n.length <= 16 && /^[A-Za-z0-9 _.'-]+$/.test(n) ? n : null;
+}
+
 export function randomLook(rng = cryptoRng) {
   return { shirt: Math.floor(rng() * SHIRT_COLORS.length), hair: Math.floor(rng() * HAIR_COLORS.length) };
 }

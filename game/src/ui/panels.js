@@ -3,7 +3,7 @@ import { fishIcon, rodIcon, baitIcon, outfitIcon, haloIcon } from './icons.js';
 import { CONFIG } from '../config.js';
 import {
   GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, BAITS, OUTFITS, HALOS, HALOS_BY_ID, rarityOdds, speciesOdds,
-  speciesPoolPct, fishValue, sellPrice,
+  speciesPoolPct, fishValue, sellPrice, SHIRT_COLORS,
 } from '../../shared/rules.js';
 import { shortAddress, isMobile, phantomDeepLink } from '../net/wallet.js';
 import { sfx } from '../game/audio.js';
@@ -435,13 +435,15 @@ export function createPanels(app) {
       render: () => {
         if (failed) return h('div.empty', 'Leaderboard is offline right now.');
         if (!data) return h('div.empty', 'Loading…');
-        const me = app.session?.wallet ? shortAddress(app.session.wallet) : null;
+        const me = app.session?.wallet ? shortAddress(app.session.wallet) : null; // rows carry the short address next to any chosen name
         return [
           h('p.note', `Ranked by the total value of every fish caught. Yours: ✦${fmt.int(p()?.caught || 0)}${data.me?.rank ? ` (#${data.me.rank})` : ''}${data.offline ? ' · server offline, showing this device only' : ''}`),
           data.top.length
             ? h('table.table',
               h('tr', h('th', '#'), h('th', 'angler'), h('th', 'catch value'), h('th', 'fish')),
-              data.top.map((r, i) => h(`tr${r.name === me ? '.me' : ''}`, h('td', i + 1), h('td', r.name), h('td.cash', `✦${fmt.int(r.caught)}`), h('td', fmt.int(r.landed)))))
+              data.top.map((r, i) => h(`tr${(r.wallet || r.name) === me ? '.me' : ''}`, h('td', i + 1),
+                h('td', r.name, r.wallet && r.wallet !== r.name ? h('span.muted', { style: { fontSize: '11px', marginLeft: '6px' } }, r.wallet) : null),
+                h('td.cash', `✦${fmt.int(r.caught)}`), h('td', fmt.int(r.landed)))))
             : h('div.empty', 'No catches yet. Be the first.'),
         ];
       },
@@ -450,13 +452,40 @@ export function createPanels(app) {
 
   // ---------------------------------------------------------------------------------- profile
   function profile() {
+    // Kept across re-renders so typing is never interrupted.
+    const nameInput = h('input.name-input', {
+      maxlength: 16,
+      placeholder: isGuest() ? 'pick a name' : shortAddress(app.session.wallet),
+      value: p()?.name || '',
+      on: {
+        keydown: (e) => { if (e.key === 'Enter') saveName(); e.stopPropagation(); },
+        blur: () => saveName(),
+      },
+    });
+    function saveName() {
+      const name = nameInput.value.replace(/\s+/g, ' ').trim();
+      if (name === (p()?.name || '')) return;
+      act(() => app.call('customize', { name: name || null }), name ? `You're now ${name} on the pier` : 'Name cleared')
+        .then((res) => { if (!res) nameInput.value = p()?.name || ''; });
+    }
     open('profile', {
       title: 'Profile',
       render: () => {
         const pr = p();
         const hold = app.holding;
         const stat = (label, value, cls = '') => h('div', label, h(`b${cls}`, value));
+        const shirt = pr.look?.shirt;
         return [
+          h('h3', 'Angler name'),
+          nameInput,
+          h('h3', 'Shirt colour'),
+          h('div.swatches', SHIRT_COLORS.map((c, i) => h(`button.sw${i === shirt ? '.on' : ''}`, {
+            style: { background: c },
+            title: `shirt colour ${i + 1}`,
+            on: { click: () => { if (i !== shirt) act(() => app.call('customize', { shirt: i })); } },
+          }))),
+          h('p.note', 'Cosmetic only: never affects your score. Your name shows to other anglers online.',
+            pr.outfit !== 'deckhand' ? ' Your shirt colour shows when you wear the Deckhand outfit.' : ''),
           isGuest()
             ? h('p', 'Playing as ', h('b', 'guest'), ' — progress is saved on this device only. ',
               h('button.pill-btn.teal', { on: { click: () => { close(); app.connectWallet(); } } }, 'connect wallet'))

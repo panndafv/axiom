@@ -2,17 +2,17 @@
 // other walk and fish. Positions are cosmetic: everything that matters (fish, gold, the pool) still
 // goes through the HTTP API, so nothing here needs to be trusted.
 //
-// Client → server: {t:'hello', token?, guest?, outfit, rod, halo, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
+// Client → server: {t:'hello', token?, guest?, name?, outfit, rod, halo, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
 //                  (mode: 0 walking, 1 fishing, 2 sitting, 3 up the lighthouse)
-//                  {t:'look', outfit, rod, halo}
+//                  {t:'look', name?, outfit, rod, halo}
 // Server → client: {t:'welcome', id, lobby, size, players:[...]}, {t:'join', p}, {t:'leave', id},
-//                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, outfit, rod, halo},
+//                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, name, outfit, rod, halo},
 //                  {t:'shout', name, sp, kg} (someone in your lobby landed something rare)
 
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { walletForToken } from './auth.js';
-import { RODS_BY_ID, OUTFITS_BY_ID, HALOS_BY_ID, SPECIES_BY_ID, RARITIES, isLook, randomLook } from '../shared/rules.js';
+import { RODS_BY_ID, OUTFITS_BY_ID, HALOS_BY_ID, SPECIES_BY_ID, RARITIES, isLook, randomLook, cleanName } from '../shared/rules.js';
 
 const haloOf = (id) => (Object.hasOwn(HALOS_BY_ID, id) ? id : null);
 
@@ -67,7 +67,8 @@ function join(ws, hello) {
     id: nextId++,
     ws,
     wallet,
-    name: wallet ? short(wallet) : `guest-${guestTag || Math.floor(Math.random() * 9000 + 1000)}`,
+    // shown when they have not picked a name
+    tag: wallet ? short(wallet) : `guest-${guestTag || Math.floor(Math.random() * 9000 + 1000)}`,
     outfit: Object.hasOwn(OUTFITS_BY_ID, hello.outfit) ? hello.outfit : 'deckhand',
     rod: Object.hasOwn(RODS_BY_ID, hello.rod) ? hello.rod : 'driftwood',
     halo: haloOf(hello.halo),
@@ -77,6 +78,7 @@ function join(ws, hello) {
     msgs: 0,
     windowStart: Date.now(),
   };
+  p.name = cleanName(hello.name) || p.tag;
   p.lobby = pickLobby();
   const lobby = lobbies.get(p.lobby);
   send(p, { t: 'welcome', id: p.id, lobby: p.lobby, size: LOBBY_SIZE, players: [...lobby.values()].map(publicPlayer) });
@@ -109,7 +111,8 @@ function onMessage(p, raw) {
     if (Object.hasOwn(RODS_BY_ID, msg.rod)) p.rod = msg.rod;
     if (isLook(msg.look)) p.look = { shirt: msg.look.shirt, hair: msg.look.hair };
     if ('halo' in msg) p.halo = haloOf(msg.halo);
-    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, outfit: p.outfit, rod: p.rod, halo: p.halo, look: p.look }, p);
+    if ('name' in msg) p.name = cleanName(msg.name) || p.tag;
+    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, name: p.name, outfit: p.outfit, rod: p.rod, halo: p.halo, look: p.look }, p);
   }
 }
 

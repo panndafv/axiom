@@ -348,8 +348,21 @@ test('leaderboard shows short names, and your rank when signed in', async () => 
 
   const anon = await api('GET', '/api/leaderboard');
   assert.equal(anon.body.top.length, 2);
-  assert.deepEqual(anon.body.top[0], { name: `${other.wallet.slice(0, 4)}…${other.wallet.slice(-4)}`, caught: 5_000, landed: 0 });
+  const short = `${other.wallet.slice(0, 4)}…${other.wallet.slice(-4)}`;
+  assert.deepEqual(anon.body.top[0], { name: short, wallet: short, caught: 5_000, landed: 0 });
   assert.equal(anon.body.me, undefined);
+
+  // a chosen name shows instead of the short address
+  const bad = await api('POST', '/api/profile', { token: other.token, body: { name: 'x' } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error, 'bad_name');
+  assert.equal((await api('POST', '/api/profile', { token: other.token, body: { name: 'a…b' } })).status, 400, 'no wallet look-alikes');
+  const named = await api('POST', '/api/profile', { token: other.token, body: { name: '  Reel   Deal ', shirt: 3 } });
+  assert.equal(named.status, 200, named.text);
+  assert.equal(named.body.profile.name, 'Reel Deal');
+  assert.equal(named.body.profile.look.shirt, 3);
+  assert.equal((await api('POST', '/api/profile', { token: other.token, body: { shirt: 99 } })).status, 400);
+  assert.deepEqual((await api('GET', '/api/leaderboard')).body.top[0], { name: 'Reel Deal', wallet: short, caught: 5_000, landed: 0 });
 
   const mine = await api('GET', '/api/leaderboard', { token });
   assert.equal(mine.body.me.rank, 2);
@@ -398,4 +411,18 @@ test('rate limit answers 429 when one address floods', async () => {
 
   // Someone else is unaffected.
   assert.equal((await api('GET', '/api/health')).status, 200);
+});
+
+test('admin grant gives a wallet an item, even one that has never played', async () => {
+  const wallet = bs58.encode(nacl.sign.keyPair().publicKey);
+  const body = { wallet, kind: 'rod', id: 'tidecaster' };
+  assert.equal((await api('POST', '/api/admin/grant', { body })).status, 401);
+  assert.equal((await api('POST', '/api/admin/grant', { headers: ADMIN, body: { ...body, wallet: 'nope' } })).status, 400);
+  assert.equal((await api('POST', '/api/admin/grant', { headers: ADMIN, body: { ...body, id: 'excalibur' } })).body.error, 'not_found');
+  const res = await api('POST', '/api/admin/grant', { headers: ADMIN, body });
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.body.rod, 'tidecaster');
+  assert.ok(res.body.rods.includes('tidecaster'));
+  const halo = await api('POST', '/api/admin/grant', { headers: ADMIN, body: { wallet, kind: 'halo', id: 'prism' } });
+  assert.deepEqual(halo.body.halos, ['prism']);
 });

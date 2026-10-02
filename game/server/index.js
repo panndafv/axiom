@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import bs58 from 'bs58';
 import { config } from './config.js';
 import { openDb, closeDb, withProfile, topScores, rankOf } from './db.js';
 import * as auth from './auth.js';
@@ -165,6 +166,12 @@ const routes = {
     });
   }),
 
+  // name and shirt colour
+  'POST /api/profile': user((wallet, { body }) => play(wallet, (p) => engine.customize(p, {
+    name: body.name === undefined ? undefined : body.name === null ? null : String(body.name).slice(0, 40),
+    shirt: body.shirt,
+  }))),
+
   'POST /api/shop/find': user((wallet, { body }) => {
     const id = needString(body, 'id', 40);
     if (!lobby.isUpTheLighthouse(wallet)) {
@@ -229,7 +236,7 @@ const routes = {
   'GET /api/payouts': user((wallet) => ({ payouts: pool.payoutsFor(wallet, 20) })),
 
   'GET /api/leaderboard': ({ req }) => {
-    const top = topScores(25).map((r) => ({ name: shortWallet(r.wallet), caught: r.best, landed: r.landed }));
+    const top = topScores(25).map((r) => ({ name: r.name || shortWallet(r.wallet), wallet: shortWallet(r.wallet), caught: r.best, landed: r.landed }));
     const wallet = auth.sessionWallet(req);
     if (!wallet) return { top };
     const { rank, best } = rankOf(wallet);
@@ -248,6 +255,25 @@ const routes = {
     if (!Number.isSafeInteger(n) || n === 0) throw badRequest('addLamports must be a non-zero whole number of lamports.');
     pool.deposit(n);
     return pool.adminState();
+  }),
+
+  // Gives a player an item for free: {"wallet": "...", "kind": "rod", "id": "tidecaster"}.
+  // Works before they have ever played; it is waiting for them when they sign in.
+  'POST /api/admin/grant': admin(({ body }) => {
+    const wallet = typeof body.wallet === 'string' ? body.wallet.trim() : '';
+    let bytes = null;
+    try {
+      bytes = bs58.decode(wallet);
+    } catch {
+      bytes = null;
+    }
+    if (bytes?.length !== 32) throw badRequest('wallet must be a Solana wallet address.');
+    const { kind, id } = shopItem(body);
+    const profile = withProfile(wallet, (p, now) => {
+      engine.grant(p, kind, id);
+      return engine.publicProfile(p, now);
+    });
+    return { wallet, granted: { kind, id }, rods: profile.rods, rod: profile.rod, halos: profile.halos, outfits: profile.outfits };
   }),
 
   'GET /api/admin/payouts': admin(({ query }) => {

@@ -5,7 +5,7 @@
 import {
   GAME, RARITIES, RODS_BY_ID, BAITS_BY_ID, SHOP, SPECIES_BY_ID,
   rollSpecies, rollKg, fishValue, biteDelayMs, minReelMs, speciesPoolPct, speciesPayout, cryptoRng, randomLook,
-  specialCast, boostedLuck, sellPrice,
+  specialCast, boostedLuck, sellPrice, cleanName, SHIRT_COLORS,
 } from './rules.js';
 
 export class GameError extends Error {
@@ -42,7 +42,8 @@ export function newProfile(id, now = Date.now()) {
     halos: [],
     halo: null,       // halo worn, adds to the gold fish sell for
     casts: 0,         // every 10th cast is golden and every 50th rainbow (see SPECIAL_CASTS)
-    look: randomLook(), // { shirt, hair } colour picks, random per player
+    look: randomLook(),
+    name: null,       // chosen name shown to other players; null = short wallet / guest tag // { shirt, hair } colour picks, random per player
     storage: [],      // the backpack, GAME.storageMax fish
     nextFishId: 1,
     log: {},          // speciesId -> { n, maxKg, first }
@@ -235,6 +236,45 @@ export function equip(p, kind, id) {
   return { kind, id };
 }
 
+// Name and shirt colour, from the profile panel. Either can be left out; name '' or null clears it.
+export function customize(p, { name, shirt } = {}) {
+  if (name !== undefined) {
+    if (name === null || name === '') {
+      p.name = null;
+    } else {
+      const clean = cleanName(name);
+      if (!clean) throw new GameError('bad_name', "Names are 2 to 16 letters, numbers, spaces or _ . - '");
+      p.name = clean;
+    }
+  }
+  if (shirt !== undefined) {
+    if (!Number.isInteger(shirt) || shirt < 0 || shirt >= SHIRT_COLORS.length) throw new GameError('bad_shirt', 'Pick one of the shirt colours.');
+    p.look = { ...p.look, shirt };
+  }
+  return {};
+}
+
+// Admin gift: puts an item in a player's profile for free (hidden rods too) and equips it.
+// Bait comes as one pack.
+export function grant(p, kind, id) {
+  const item = Object.hasOwn(SHOP, kind) && Object.hasOwn(SHOP[kind], id) ? SHOP[kind][id] : null;
+  if (!item) throw new GameError('not_found', 'No such item.');
+  if (kind === 'rod') {
+    if (!p.rods.includes(id)) p.rods.push(id);
+    if (!p.cast) p.rod = id;
+  } else if (kind === 'outfit') {
+    if (!p.outfits.includes(id)) p.outfits.push(id);
+    p.outfit = id;
+  } else if (kind === 'halo') {
+    if (!p.halos.includes(id)) p.halos.push(id);
+    p.halo = id;
+  } else {
+    p.baits[id] = (p.baits[id] || 0) + item.pack;
+    if (!p.bait) p.bait = id;
+  }
+  return { kind, id };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Reward pool (server only: guests cannot exchange)
 //
@@ -306,6 +346,7 @@ export function publicProfile(p, now = Date.now()) {
     halos: p.halos,
     halo: p.halo,
     casts: p.casts,
+    name: p.name,
     look: p.look,
     luck: currentLuck(p),
     storage: p.storage,
