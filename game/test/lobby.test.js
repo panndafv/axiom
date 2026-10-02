@@ -83,7 +83,7 @@ test('players in a lobby see each other join, move, change rods and leave', asyn
   await a.close();
 });
 
-test('the 51st player opens lobby 2', async () => {
+test('a full lobby sends the next player to lobby 2', async () => {
   const clients = [];
   for (let i = 0; i < lobby.LOBBY_SIZE; i++) {
     const c = client({ guest: i.toString(16).padStart(4, '0') });

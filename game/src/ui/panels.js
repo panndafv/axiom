@@ -83,7 +83,7 @@ export function createPanels(app) {
         h('h3', 'Luck'),
         h('p', 'Rods and bait add 🍀 luck. More luck means rarer fish bite more often. Buy them at the ⚓ shop with the gold you make selling fish.'),
         h('h3', 'Lobbies'),
-        h('p', 'Up to 50 anglers share a pier. When someone in your lobby lands an Epic or rarer fish, everyone hears about it.'),
+        h('p', 'Up to 25 anglers share a pier. When someone in your lobby lands an Epic or rarer fish, everyone hears about it.'),
         h('h3', 'The reward pool'),
         h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills a SOL pool. Rare, Epic, Legendary and Mythic fish can be cashed in for a fixed % of whatever is in the pool at that moment — the rarer the fish, the bigger the slice. To cash in you need a connected wallet holding at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}, and ${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish.`),
         h('h3', 'On the deck'),
@@ -100,37 +100,6 @@ export function createPanels(app) {
       cls: 'wide',
       headExtra: () => h('button.pill-btn.ghost', { on: { click: () => catchLog() } }, 'catch log'),
       render: renderRack,
-    });
-  }
-
-  // What you are carrying. Selling happens at the fish rack, so this is a view.
-  function backpack() {
-    open('backpack', {
-      title: '🎒 Backpack',
-      render: () => {
-        const pr = p();
-        const worth = (f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].order * 1e6 + f.value;
-        const fish = [...pr.storage].sort((a, b) => worth(b) - worth(a));
-        const total = fish.reduce((s, f) => s + f.value, 0);
-        const full = fish.length >= GAME.storageMax;
-        return [
-          h('div.stat-line', h('span', `${fish.length} / ${GAME.storageMax} fish`), h('span.cash', `worth ✦${fmt.int(total)}`)),
-          h('p.note', full
-            ? 'Your backpack is full. Sell some at the fish rack before you cast again.'
-            : 'Sell fish for gold at the ✦ FISH RACK on the main deck. Cash rare ones in at the ◆ REWARD POOL chest.'),
-          fish.length
-            ? h('div.rows', fish.map((f) => {
-              const sp = SPECIES_BY_ID[f.sp];
-              return h('div.row',
-                rarityTag(sp.rarity),
-                h('div.fish-name', fishIcon(sp, 40), h('span', sp.name)),
-                h('span.muted', fmt.kg(f.kg)),
-                h('span.val', `✦${f.value}`),
-                h('span'));
-            }))
-            : h('div.empty', 'Empty. Walk to any edge of the pier and catch some fish.'),
-        ];
-      },
     });
   }
 
@@ -546,7 +515,7 @@ export function createPanels(app) {
   }
 
   return {
-    howTo, rack, backpack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, noWallet,
+    howTo, rack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, noWallet,
     close, rerender,
     get open() { return current?.name || null; },
   };

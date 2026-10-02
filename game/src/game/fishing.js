@@ -127,7 +127,6 @@ export function createFishing({ scene, player, app, hud, input }) {
   let reelTick = 0;
   let enteredAt = 0;
   let leftAt = -1e9;
-  let session = []; // fish landed since stepping up to the edge
   const tip = new THREE.Vector3();
   const bobberRest = new THREE.Vector3();
   const shore = new THREE.Vector3();
@@ -138,14 +137,12 @@ export function createFishing({ scene, player, app, hud, input }) {
 
   function refreshPrompt() {
     hud.fishing.setPrompt(state, { full: backpackFull() });
-    hud.fishing.setSession(session, app.profile);
   }
 
   function enter(s) {
     spot = s;
     state = 'idle';
     enteredAt = now();
-    session = [];
     player.setMode('fish', { spot });
     hud.fishing.show();
     // a line left in the water by a page reload: reel it in
@@ -265,7 +262,6 @@ export function createFishing({ scene, player, app, hud, input }) {
           }
         }
         const sp = SPECIES_BY_ID[res.fish.sp];
-        session.push(res.fish);
         showLanded(sp, res.fish, res.isNew);
         app.onCatch?.(res.fish);
         line.visible = false;

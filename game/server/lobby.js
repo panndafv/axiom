@@ -13,7 +13,7 @@ import { config } from './config.js';
 import { walletForToken } from './auth.js';
 import { RODS_BY_ID, OUTFITS_BY_ID, SPECIES_BY_ID, RARITIES } from '../shared/rules.js';
 
-export const LOBBY_SIZE = 50;
+export const LOBBY_SIZE = 25;
 const TICK_MS = 125;
 const HELLO_TIMEOUT_MS = 5_000;
 const MAX_MSGS_PER_SEC = 20; // a client sends ~8 a second

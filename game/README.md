@@ -1,6 +1,6 @@
 # Pier Pressure
 
-A low-poly 3D multiplayer fishing game for a memecoin. Up to 50 players share a pier. Cast from any
+A low-poly 3D multiplayer fishing game for a memecoin. Up to 25 players share a pier. Cast from any
 edge, reel fish in, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
 for a share of a SOL reward pool** funded by the token's creator fees. Only wallets holding at
 least **$50 of the token** can cash in.
@@ -117,7 +117,7 @@ Players see their claims and the transaction links in the reward pool panel.
 ## Lobbies
 
 The server also speaks WebSocket on `/ws`. Players are put in the lowest-numbered lobby with room
-(50 per lobby) and see everyone in it walk, fish and change rods, with name tags (short wallet
+(25 per lobby) and see everyone in it walk, fish and change rods, with name tags (short wallet
 address, or `guest-xxxx`). When a signed-in player lands an Epic or rarer fish, the rest of their
 lobby gets a shout-out. There is no chat. Positions are cosmetic: fish, gold and the pool never go
 over the socket. Lobbies live in memory, so run one server instance (Render's single instance is

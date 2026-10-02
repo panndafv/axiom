@@ -20,10 +20,40 @@ export function createHud(app) {
   };
   const luckChip = chip('luck', '🍀', 'LUCK', () => app.panels.shop('bait'));
   const goldChip = chip('gold', '✦', 'GOLD', () => app.panels.shop('rods'));
-  const bagChip = chip('bag', '🎒', 'BACKPACK', () => app.panels.backpack());
+  const bagChip = chip('bag', '🎒', 'BACKPACK', () => toggleBag());
+  const bagMenu = h('div.bag-menu');
+  bagMenu.hidden = true;
+  const bagWrap = h('div.chip-wrap', bagChip.el, bagMenu);
   const lobbyChip = chip('lobby', '👥', 'LOBBY', () => {});
   lobbyChip.el.style.display = 'none';
-  const topBar = h('div.topbar', luckChip.el, goldChip.el, bagChip.el, lobbyChip.el);
+  const topBar = h('div.topbar', luckChip.el, goldChip.el, bagWrap, lobbyChip.el);
+
+  // Your fish in one column, rarest first. Selling still happens at the fish rack.
+  function renderBag() {
+    const p = app.profile;
+    if (!p || bagMenu.hidden) return;
+    const worth = (f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].order * 1e6 + f.value;
+    const fish = [...p.storage].sort((a, b) => worth(b) - worth(a));
+    const total = fish.reduce((sum, f) => sum + f.value, 0);
+    bagMenu.replaceChildren(
+      h('div.head', h('span', 'BACKPACK'), h('span', `${fish.length}/${GAME.storageMax}`)),
+      fish.length
+        ? h('div.list', fish.map((f) => {
+          const sp = SPECIES_BY_ID[f.sp];
+          return h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${f.value}`));
+        }))
+        : h('div.empty-note', 'empty. go catch something!'),
+      h('div.total', h('span', `${fish.length} fish`), h('span.cash', `✦${fmt.int(total)}`)),
+      h('div.note', fish.length >= GAME.storageMax ? 'full: sell at the fish rack to keep fishing' : 'sell them at the fish rack'),
+    );
+  }
+  function toggleBag(open = bagMenu.hidden) {
+    bagMenu.hidden = !open;
+    bagChip.el.classList.toggle('open', open);
+    renderBag();
+  }
+  window.addEventListener('pointerdown', (e) => { if (!bagMenu.hidden && !bagWrap.contains(e.target)) toggleBag(false); });
+  window.addEventListener('keydown', (e) => { if (e.code === 'Escape' && !bagMenu.hidden) toggleBag(false); });
 
   function renderTop() {
     const p = app.profile;
@@ -31,6 +61,7 @@ export function createHud(app) {
     luckChip.v.textContent = `${p.luck}`;
     goldChip.v.textContent = fmt.int(p.cash);
     bagChip.v.textContent = `${p.storage.length}/${GAME.storageMax}`;
+    renderBag();
     bagChip.el.classList.toggle('full', p.storage.length >= GAME.storageMax);
     bagChip.el.title = p.storage.length >= GAME.storageMax
       ? 'Backpack full: sell fish at the fish rack to keep fishing'
@@ -148,10 +179,6 @@ export function createHud(app) {
   }
 
   // ------------------------------------------------------------------ fishing HUD
-  const sesList = h('div');
-  const sesTotal = h('div.score');
-  const sesLuck = h('div.luck');
-  const sessionCard = h('div.stringer', h('div.head', h('span', 'THIS SESSION')), sesList, sesTotal, sesLuck);
   const prompt = h('div.prompt');
   const last = h('div.last-catch');
   const progBar = h('i');
@@ -164,7 +191,7 @@ export function createHud(app) {
     h('div.bar.tension', tenBar),
   );
   reel.style.display = 'none';
-  const fishRoot = h('div.fish-hud.passive', sessionCard, last, prompt, reel);
+  const fishRoot = h('div.fish-hud.passive', last, prompt, reel);
   fishRoot.style.display = 'none';
   ui.append(fishRoot);
 
@@ -174,19 +201,6 @@ export function createHud(app) {
   const fishing = {
     show() { fishRoot.style.display = ''; hint.textContent = 'click / [Space] to cast · HOLD to reel · (E) stop fishing'; },
     hide() { fishRoot.style.display = 'none'; reel.style.display = 'none'; },
-    setSession(fish, profile) {
-      sesList.replaceChildren();
-      if (!fish.length) sesList.append(h('div', { style: { color: 'var(--muted)' } }, 'nothing yet. cast!'));
-      for (const f of fish.slice(-6)) {
-        const sp = SPECIES_BY_ID[f.sp];
-        sesList.append(h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${f.value}`)));
-      }
-      if (fish.length > 6) sesList.append(h('div', { style: { color: 'var(--muted)' } }, `+${fish.length - 6} more`));
-      const total = fish.reduce((sum, f) => sum + f.value, 0);
-      sesTotal.replaceChildren(h('span', `${fish.length} fish`), h('span.cash', `✦${fmt.int(total)}`));
-      const b = profile?.bait && BAITS_BY_ID[profile.bait];
-      sesLuck.textContent = `🍀 luck ${profile?.luck ?? 0}${b ? ` (${b.name} ×${profile.baits[profile.bait]})` : ''}`;
-    },
     setPrompt(state, { full }) {
       prompt.replaceChildren();
       const add = (...els) => prompt.append(...els.filter(Boolean));
