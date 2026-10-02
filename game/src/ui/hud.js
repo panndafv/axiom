@@ -334,6 +334,13 @@ export function createHud(app) {
       setTimeout(() => { el.style.transition = 'opacity 0.4s'; el.style.opacity = '0'; }, 1700);
       setTimeout(() => el.remove(), 2200);
     },
+    // Big "2× LUCK" (gold) / "5× LUCK" (rainbow) when a golden or rainbow cast goes out.
+    luckPopup(kind, boost, label) {
+      fishRoot.querySelector('.luck-pop')?.remove();
+      const el = h(`div.luck-pop.${kind}`, h('div.big', `${boost}× LUCK`), h('div.small', label.toUpperCase()));
+      fishRoot.append(el);
+      setTimeout(() => el.remove(), 2600);
+    },
     banner(text, kind = 'info') {
       bannerEl?.remove();
       bannerEl = h(`div.banner.${kind}`, text);

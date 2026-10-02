@@ -831,3 +831,67 @@ body.touch .bottom-hint, body.touch .key-hints { display: none; }
 .swatches .sw { width: 40px; height: 40px; border-radius: 8px; border: 2px solid rgba(255, 255, 255, 0.12); }
 .swatches .sw:hover { transform: translateY(-1px); }
 .swatches .sw.on { border-color: #fff4e2; box-shadow: 0 0 0 2px var(--teal); }
+
+/* golden / rainbow cast popup */
+.luck-pop {
+  position: absolute;
+  left: 50%;
+  top: 27%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: luck-pop 2.6s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+}
+.luck-pop .big {
+  font-family: var(--display);
+  font-size: clamp(56px, 9vw, 112px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.luck-pop .small {
+  margin-top: 6px;
+  font-family: var(--display);
+  font-size: clamp(16px, 2.2vw, 24px);
+  letter-spacing: 0.14em;
+  color: #fff4e2;
+  filter: drop-shadow(0 2px 0 #2a1810);
+}
+.luck-pop.golden .big {
+  background-image: linear-gradient(180deg, #fff6b8 0%, #ffd34d 45%, #e8961c 100%);
+  filter: drop-shadow(0 4px 0 #3a2410) drop-shadow(0 0 18px rgba(255, 200, 80, 0.6));
+}
+.luck-pop.golden .small { color: #ffe08a; }
+.luck-pop.rainbow .big {
+  background-image: linear-gradient(90deg, #ff5f6d, #ffb347, #ffe66d, #62e08f, #4fb6ff, #b884ff, #ff5f6d);
+  background-size: 200% 100%;
+  animation: rainbow-slide 1.1s linear infinite;
+  filter: drop-shadow(0 4px 0 #2a1810) drop-shadow(0 0 22px rgba(255, 255, 255, 0.5));
+}
+@keyframes rainbow-slide { to { background-position: 200% 0; } }
+@keyframes luck-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  22% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(1); }
+}
+
+.x-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-right: 8px;
+  border-radius: 8px;
+  background: #0f1418;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+.x-link:hover { border-color: #fff; }
+.x-link .x-logo { font-size: 16px; }

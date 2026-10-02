@@ -219,7 +219,7 @@ export function createFishing({ scene, player, app, hud, input }) {
       };
       const special = SPECIAL_CASTS.find((sc) => sc.kind === res.special);
       if (special) {
-        hud.fishing.banner(`${special.label} · ${special.boost}× luck`, special.kind);
+        hud.fishing.luckPopup(special.kind, special.boost, special.label);
         sfx.land(special.kind === 'rainbow' ? 5 : 3);
       }
     } catch (err) {

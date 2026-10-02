@@ -47,7 +47,9 @@ export const SPECIES = [
   { id: 'diamond_tuna',  name: 'Diamond Tuna',       rarity: 'legendary', kg: [20, 90],    difficulty: 0.78, shape: 'tuna',  pattern: 'plain',   colors: ['#1d3f75', '#dfe8f5', '#9ff3ff'], blurb: 'Has never sold. Will never sell.' },
   { id: 'bull_koi',      name: 'Bull Koi',           rarity: 'legendary', kg: [4, 16],     difficulty: 0.8,  shape: 'perch', pattern: 'spots',   colors: ['#f2b233', '#fff3c9', '#ff7b2e'], blurb: 'Only swims up and to the right.' },
   { id: 'moon_marlin',   name: 'Moon Marlin',        rarity: 'mythic',    kg: [80, 320],   difficulty: 0.92, weight: 3, shape: 'marlin',pattern: 'plain',   colors: ['#23305f', '#e9ecff', '#c9b6ff'], blurb: 'Pointed straight at the moon.' },
-  // The rarest fish in the game (1 in 4 mythics) and the biggest slice of the pool.
+  { id: 'golden_koi',    name: 'Golden Koi',         rarity: 'mythic',    kg: [6, 24],     difficulty: 0.9,  weight: 3, shape: 'perch', pattern: 'spots',   colors: ['#ffd84a', '#fffbea', '#e8412c'], blurb: 'Everything it touches turns green.' },
+  { id: 'swordfish',     name: 'Swordfish',          rarity: 'mythic',    kg: [60, 260],   difficulty: 0.93, weight: 3, shape: 'marlin',pattern: 'stripes', colors: ['#2b3b4f', '#d9e2ea', '#7fd1ff'], blurb: 'Cuts straight through resistance.' },
+  // The rarest fish in the game (1 in 10 mythics) and the biggest slice of the pool.
   { id: 'ghost_whale',   name: 'Ghost Whale',        rarity: 'mythic',    kg: [400, 1600], difficulty: 0.96, weight: 1, poolPct: 0.065, special: true, shape: 'shark', pattern: 'spots',   colors: ['#b9d7e6', '#f5fbff', '#e0f7ff'], blurb: 'Moves the whole chart when it turns.' },
 ];
 

@@ -245,7 +245,7 @@ test('the Ghost Whale is the rarest fish and pays 6.5% of the pool', () => {
   assert.equal(odds[0][0], 'ghost_whale');
   assert.ok(odds[0][1] < odds[1][1]);
   assert.equal(speciesPoolPct('ghost_whale'), 0.065);
-  assert.equal(speciesPoolPct('moon_marlin'), 0.03);
+  for (const id of ['moon_marlin', 'golden_koi', 'swordfish']) assert.equal(speciesPoolPct(id), 0.03);
 
   const p = poolPlayer();
   const whale = addFish(p, 'ghost_whale', 2000);

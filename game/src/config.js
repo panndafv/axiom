@@ -7,6 +7,7 @@ export const CONFIG = {
   tokenSymbol: env.VITE_TOKEN_SYMBOL || 'DRIFT',
   tokenMint: env.VITE_TOKEN_MINT || '',
   buyUrl: env.VITE_BUY_URL || '',
+  xUrl: env.VITE_X_URL || 'https://x.com/driftgamesol',
   apiUrl: (env.VITE_API_URL || '').replace(/\/$/, ''),
   minHoldUsd: 30,
   earnGate: 10,

@@ -73,10 +73,11 @@ All of it lives in `shared/rules.js`.
 | Rare      | 9.5%      | ~✦70      | 0.04%                       |
 | Epic      | 3.6%      | ~✦200     | 0.25%                       |
 | Legendary | 0.8%      | ~✦600     | 1%                          |
-| Mythic    | 0.1%      | ~✦2000    | 3% (Moon Marlin)            |
+| Mythic    | 0.1%      | ~✦2000    | 3% (Moon Marlin, Golden Koi, Swordfish) |
 
-The **Ghost Whale** is a special mythic: it bites a quarter as often as the Moon Marlin (0.025% of
-all bites at zero luck, the rarest fish in the game) and cashes in for **6.5%** of the pool.
+The three 3% mythics each bite 0.03% of the time at zero luck. The **Ghost Whale** is a special
+mythic: it bites a third as often as any one of them (0.01% of all bites at zero luck, the rarest
+fish in the game) and cashes in for **6.5%** of the pool.
 Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
 
 - **Gold** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Gold has

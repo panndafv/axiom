@@ -640,6 +640,8 @@ export function createPanels(app) {
       title: 'Credits',
       render: () => [
         h('p', `${CONFIG.gameName} — a fishing game for $${CONFIG.tokenSymbol} holders.`),
+        h('p', h('a.x-link', { href: CONFIG.xUrl, target: '_blank', rel: 'noopener' },
+          h('span.x-logo', '𝕏'), `@${CONFIG.xUrl.replace(/\/+$/, '').split('/').pop()}`), ' news and updates'),
         h('p.muted', 'Built with three.js. Every model, texture and sound is generated in code.'),
         h('p.muted', 'Gold and items have no value outside the game. Pool cash-ins are paid in SOL from the creator-fee pool, at the rates shown in the reward pool.'),
       ],
