@@ -139,6 +139,7 @@ export const config = {
   hideMint: bool('HIDE_MINT', false),
   earnGate: num('EARN_GATE', 10), // fish a wallet must have sold before it can cash any in
   poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
+  poolDailyFish: num('POOL_DAILY_FISH', 30), // most fish one wallet can cash in per 24 hours
   poolWallet,
   poolMode: poolWallet ? 'wallet' : 'ledger',
   // With the pool wallet's key the server sends payouts itself (see payer.js).

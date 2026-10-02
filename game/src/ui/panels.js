@@ -100,7 +100,7 @@ export function createPanels(app) {
           h('li', 'a connected wallet (guests can only sell fish for gold)'),
           h('li', `at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in that wallet, checked live when you cash in`),
           CONFIG.earnGate > 0 ? h('li', `${fmt.int(CONFIG.earnGate)} fish sold at the fish rack, so you have actually played first`) : null),
-        h('p', `Each wallet can take up to ${fmt.pct(app.poolInfo?.dailyCapPct ?? 0.1)} of the pool per day. `,
+        h('p', `Each wallet can cash in up to ${dailyFish()} fish, and take up to ${fmt.pct(app.poolInfo?.dailyCapPct ?? 0.1)} of the pool, in any 24 hours. `,
           CONFIG.autoPayouts
             ? 'Every cash-in is sent straight to your wallet, and the reward pool lists each one with its transaction on Solscan.'
             : `Cash-ins add to your claimable SOL. Claim it at the chest (min ${fmt.sol(GAME.minClaimLamports, 2)}) and it is sent to your wallet; the reward pool shows each payout's Solscan transaction once it has gone out.`),
@@ -123,12 +123,16 @@ export function createPanels(app) {
     });
   }
 
+  // most fish one wallet can cash in per 24 hours (the server's number when we have it)
+  const dailyFish = () => app.poolInfo?.dailyFish ?? GAME.dailyCashInFish;
+
   // ok: everything checks out. canTry: the cash-in buttons work. A failed holding check still
   // lets you try, because the server checks again (the one we have may be out of date).
   function poolStatus() {
     const pr = p();
     if (isGuest()) return { ok: false, canTry: false, why: 'connect a wallet on the title screen to cash in rare fish for SOL from the reward pool (RARE, EPIC, LEGENDARY, MYTHIC)' };
     if ((pr.sold || 0) < CONFIG.earnGate) return { ok: false, canTry: false, why: `sell ${fmt.int(CONFIG.earnGate - (pr.sold || 0))} more fish at the rack to unlock cash-ins` };
+    if ((pr.cashedToday || 0) >= dailyFish()) return { ok: false, canTry: false, why: `you've cashed in ${dailyFish()} fish today, the most for one day. Come back tomorrow.` };
     const hold = app.holding;
     if (!hold?.ok) {
       const why = hold?.error
@@ -138,7 +142,7 @@ export function createPanels(app) {
           : `hold at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in this wallet to cash in rare fish`;
       return { ok: false, canTry: true, why };
     }
-    return { ok: true, canTry: true, why: 'rare fish and up can be cashed in for a share of the reward pool' };
+    return { ok: true, canTry: true, why: `rare fish and up can be cashed in for a share of the reward pool · ${pr.cashedToday || 0} / ${dailyFish()} cashed in today` };
   }
 
   function renderRack() {
@@ -580,7 +584,9 @@ export function createPanels(app) {
                 check(!!app.holding?.ok, app.holding?.dev ? 'holding check off (dev mode)' : app.holding?.test ? 'test wallet: holding check skipped' : `holds ≥ $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}${app.holding ? ` (now ${fmt.usd(app.holding.usd || 0)})` : ''}`),
                 check((pr.sold || 0) >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} fish sold (${fmt.int(pr.sold || 0)})`),
               ),
-              h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.1)} of the pool.` : status.why),
+              h('p.note', status.ok
+                ? `Cashed in today: ${pr.cashedToday || 0} / ${dailyFish()} fish · at most ${fmt.pct(info?.dailyCapPct ?? 0.1)} of the pool per day.`
+                : status.why),
               CONFIG.autoPayouts
                 ? h('p', 'Every cash-in is sent straight to your wallet. Each one is listed below with its transaction on Solscan.')
                 : h('p', 'Cash-ins add to your claimable SOL. Claim it to queue a payout; once it has been sent, its Solscan transaction shows up below.'),

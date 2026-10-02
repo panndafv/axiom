@@ -210,6 +210,7 @@ const routes = {
       const result = engine.exchange(p, fishIds, pool.available(), {
         now,
         dailyCapPct: config.poolDailyCapPct,
+        dailyFish: config.poolDailyFish,
         earnGate: config.earnGate,
       });
       pool.recordExchange(wallet, result, now);

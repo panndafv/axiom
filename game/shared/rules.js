@@ -10,6 +10,7 @@ export const GAME = {
   storageMax: 15,         // backpack size: full means sell at the fish rack before casting again
   startProgress: 0.18,    // the reel starts with a little line already in
   minClaimLamports: 10_000_000, // 0.01 SOL
+  dailyCashInFish: 30,    // most fish one wallet can cash in for SOL in any 24 hours
 };
 
 export const LAMPORTS_PER_SOL = 1_000_000_000;

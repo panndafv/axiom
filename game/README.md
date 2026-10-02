@@ -80,6 +80,8 @@ mythic: it bites a third as often as any one of them (0.01% of all bites at zero
 fish in the game) and cashes in for **6.5%** of the pool.
 Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
 
+- **Weight** changes the gold price: a fish sells for 0.8× (lightest) to 1.3× (heaviest) of its
+  rarity's base. The SOL cash-in is the same for every fish of a species.
 - **Gold** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Gold has
   no value outside the game.
 - **Golden and rainbow casts.** Every 10th cast is golden (2× luck) and every 50th rainbow (5×
@@ -101,7 +103,9 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
     DexScreener (Jupiter as fallback);
   - it must have sold `EARN_GATE` fish at the rack (default 10; anti-bot: you have to actually play first);
   - it can take at most `POOL_DAILY_CAP_PCT` of the pool per 24 hours (default 10%; keep it above
-    6.5% or a Ghost Whale could never be cashed in).
+    6.5% or a Ghost Whale could never be cashed in);
+  - it can cash in at most `POOL_DAILY_FISH` fish per 24 hours (default 30). When more are picked,
+    the rarest go first and the rest stay in the backpack.
 - With automatic payouts on, every cash-in is sent to the player's wallet straight away. Otherwise
   it adds to their **claimable** SOL, and a claim (min 0.01 SOL) queues a payout for you to send.
 

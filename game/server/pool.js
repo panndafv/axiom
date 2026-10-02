@@ -61,6 +61,7 @@ export function summary() {
     owedLamports: r.owed,
     paidLamports: r.paid,
     dailyCapPct: config.poolDailyCapPct,
+    dailyFish: config.poolDailyFish,
     autoPayouts: config.autoPayouts,
     minHoldUsd: config.minHoldUsd,
     earnGate: config.earnGate,

@@ -318,3 +318,22 @@ test('halos: bought once, worn, taken off, and add to the gold fish sell for', (
   assert.equal(engine.sell(p, [b.id]).cash, 100);
   assert.equal(engine.publicProfile(p).halos.length, 1);
 });
+
+test('exchange: at most 30 fish per wallet in any 24 hours, rarest first', () => {
+  const p = poolPlayer();
+  const opts = { ...poolOpts, dailyCapPct: 1 };
+  const ids = Array.from({ length: 31 }, () => addFish(p, 'pump_puffer').id);
+  const whale = addFish(p, 'ghost_whale');
+  const out = engine.exchange(p, [...ids, whale.id], 1_000 * SOL, opts);
+  assert.equal(out.items.length, 30);
+  assert.equal(out.capped, true);
+  assert.equal(out.items[0].sp, 'ghost_whale', 'the rarest fish gets a slot first');
+  assert.equal(engine.cashedInToday(p, T0), 30);
+  assert.equal(engine.publicProfile(p, T0).cashedToday, 30);
+  assert.equal(p.storage.length, 2, 'the two that did not fit stay in the backpack');
+
+  const left = p.storage.map((f) => f.id);
+  assert.throws(() => engine.exchange(p, left, 1_000 * SOL, opts), { code: 'daily_fish' });
+  const tomorrow = engine.exchange(p, left, 1_000 * SOL, { ...opts, now: T0 + DAY });
+  assert.equal(tomorrow.items.length, 2);
+});

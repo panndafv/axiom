@@ -51,7 +51,7 @@ export function newProfile(id, now = Date.now()) {
     lineReadyAt: 0,   // no new cast before this time
     claimable: 0,     // lamports won from the pool, not yet claimed
     totalEarned: 0,   // lamports won from the pool, lifetime
-    exchanges: [],    // [{ at, lamports }] within the last 24h, for the daily cap
+    exchanges: [],    // [{ at, lamports, fish }] within the last 24h, for the daily limits
   };
 }
 
@@ -281,7 +281,15 @@ export function grant(p, kind, id) {
 // Each fish pays poolPct of whatever is left in the pool at that moment, so exchanging many fish
 // at once gives slightly less per fish than the first one, and the pool never reaches zero.
 
-export function exchange(p, fishIds, availableLamports, { now = Date.now(), dailyCapPct = 0.1, earnGate = 0 } = {}) {
+// Fish cashed in during the last 24 hours (cash-ins from before this was counted count as one).
+export function cashedInToday(p, now = Date.now()) {
+  return (p.exchanges || []).filter((e) => now - e.at < 86_400_000).reduce((n, e) => n + (e.fish ?? 1), 0);
+}
+
+// Two daily limits per wallet, over any 24 hours: dailyFish fish, and dailyCapPct of the pool.
+export function exchange(p, fishIds, availableLamports, {
+  now = Date.now(), dailyCapPct = 0.1, earnGate = 0, dailyFish = GAME.dailyCashInFish,
+} = {}) {
   if (p.sold < earnGate) {
     const n = earnGate - p.sold;
     throw new GameError('gate', `Sell ${n} more fish at the rack to unlock the pool.`, 403);
@@ -296,10 +304,15 @@ export function exchange(p, fishIds, availableLamports, { now = Date.now(), dail
 
   const cap = Math.floor(availableLamports * dailyCapPct);
   let usedToday = p.exchanges.reduce((s, e) => s + e.lamports, 0);
+  const fishLeft = Math.max(0, dailyFish - cashedInToday(p, now));
+  if (fishLeft === 0) {
+    throw new GameError('daily_fish', `You've cashed in ${dailyFish} fish today, the most for one day. Come back tomorrow.`, 409);
+  }
   let remaining = availableLamports;
   const items = [];
   let capped = false;
   for (const f of candidates) {
+    if (items.length >= fishLeft) { capped = true; break; } // rarest go first
     const rarity = SPECIES_BY_ID[f.sp].rarity;
     const pay = speciesPayout(f.sp, remaining);
     if (pay <= 0) continue;
@@ -316,7 +329,7 @@ export function exchange(p, fishIds, availableLamports, { now = Date.now(), dail
   const total = items.reduce((s, i) => s + i.lamports, 0);
   p.claimable += total;
   p.totalEarned += total;
-  p.exchanges.push({ at: now, lamports: total });
+  p.exchanges.push({ at: now, lamports: total, fish: items.length });
   return { items, total, capped, claimable: p.claimable };
 }
 
@@ -356,5 +369,6 @@ export function publicProfile(p, now = Date.now()) {
     readyInMs: Math.max(0, p.lineReadyAt - now),
     claimable: p.claimable,
     totalEarned: p.totalEarned,
+    cashedToday: cashedInToday(p, now),
   };
 }
