@@ -197,15 +197,22 @@ export function lose(p, runId, castId, reason, now = Date.now()) {
   return { reason, lost, run: publicRun(run, now) };
 }
 
+// Puts banked fish in the backpack. When it would overflow, the most valuable fish stay (rarity
+// first, so a rare fish is never sold to make room for a common) and the rest are sold for gold.
 function store(p, fishes) {
-  const room = Math.max(0, GAME.storageMax - p.storage.length);
-  const kept = fishes.slice(0, room);
-  const overflow = fishes.slice(room);
-  p.storage.push(...kept);
-  const overflowCash = overflow.reduce((s, f) => s + f.value, 0);
-  p.cash += overflowCash;
-  p.lifetimeCash += overflowCash;
-  return { stored: kept.length, autoSold: overflow.length, autoSoldCash: overflowCash };
+  const all = [...p.storage, ...fishes];
+  if (all.length <= GAME.storageMax) {
+    p.storage = all;
+    return { stored: fishes.length, autoSold: 0, autoSoldCash: 0 };
+  }
+  const worth = (f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].order * 1e6 + f.value;
+  const keep = new Set([...all].sort((a, b) => worth(b) - worth(a)).slice(0, GAME.storageMax).map((f) => f.id));
+  const sold = all.filter((f) => !keep.has(f.id));
+  p.storage = all.filter((f) => keep.has(f.id));
+  const soldCash = sold.reduce((s, f) => s + f.value, 0);
+  p.cash += soldCash;
+  p.lifetimeCash += soldCash;
+  return { stored: fishes.filter((f) => keep.has(f.id)).length, autoSold: sold.length, autoSoldCash: soldCash };
 }
 
 function doBank(p, run) {
@@ -289,7 +296,7 @@ export function buy(p, kind, id) {
   if (!item) throw new GameError('not_found', 'That is not in the shop.');
   if (kind === 'rod' && p.rods.includes(id)) throw new GameError('owned', 'You already own that rod.');
   if (kind === 'outfit' && p.outfits.includes(id)) throw new GameError('owned', 'You already own that outfit.');
-  if (p.cash < item.price) throw new GameError('broke', `You need ${item.price - p.cash} more cash.`);
+  if (p.cash < item.price) throw new GameError('broke', `You need ${item.price - p.cash} more gold.`);
   p.cash -= item.price;
   if (kind === 'rod') {
     p.rods.push(id);

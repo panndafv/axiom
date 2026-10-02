@@ -246,3 +246,16 @@ test('claim needs at least the minimum and empties claimable', () => {
   assert.deepEqual(engine.claim(p), { amount: GAME.minClaimLamports + 5 });
   assert.equal(p.claimable, 0);
 });
+
+test('a full backpack keeps the most valuable fish and sells the rest for gold', () => {
+  const p = engine.newProfile('tester', T0);
+  for (let i = 0; i < GAME.storageMax; i++) addFish(p, 'paper_perch', 7);
+  const run = engine.startRun(p, T0);
+  // land one rare fish onto the stringer by hand and bank it
+  p.run.stringer.push({ id: p.nextFishId++, sp: 'pump_puffer', kg: 1, value: 70, at: T0 });
+  const res = engine.bank(p, run.id, T0 + 1000);
+  assert.equal(p.storage.length, GAME.storageMax);
+  assert.equal(res.autoSold, 1);
+  assert.equal(res.autoSoldCash, 7);
+  assert.ok(p.storage.some((f) => f.sp === 'pump_puffer'), 'the rare fish is kept');
+});

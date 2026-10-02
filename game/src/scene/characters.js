@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { rodMesh } from './props.js';
 
-// Blocky angler. Faces +z. Height ~2.1 m. Parts pivot at the joints so they can swing.
+// Blocky angler. Faces +z. Modelled ~2.3 m tall and drawn at CHAR_SCALE (about 1.6 m) so a deck
+// with dozens of players still has room. Parts pivot at the joints so they can swing.
+
+export const CHAR_SCALE = 0.7;
+const SEAT_HEIGHT = 0.49; // bench seat top, in world metres
 
 const SKIN = '#f0c39a';
 
@@ -16,6 +20,7 @@ function part(w, h, d, color, pivotTop = true) {
 
 export function createCharacter({ shirt = '#1f6c75', pants = '#1e2a4b', hair = '#d8662a', hat = null, rod = null } = {}) {
   const root = new THREE.Group();
+  root.scale.setScalar(CHAR_SCALE);
   const body = new THREE.Group(); // bobs while walking
   root.add(body);
 
@@ -149,7 +154,7 @@ export function createCharacter({ shirt = '#1f6c75', pants = '#1e2a4b', hair = '
 
     legL.rotation.x = swing * (1 - sit) - sit * 1.5;
     legR.rotation.x = -swing * (1 - sit) - sit * 1.5;
-    hips.position.y = 0.92 - sit * 0.35 + Math.abs(Math.sin(phase)) * 0.06 * speed;
+    hips.position.y = 0.92 - sit * (0.92 - SEAT_HEIGHT / CHAR_SCALE) + Math.abs(Math.sin(phase)) * 0.06 * speed;
     body.rotation.x = 0;
 
     if (pose === 'fish') {

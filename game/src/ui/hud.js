@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { h, fmt } from './dom.js';
 import { fishIcon } from './icons.js';
 import { CONFIG } from '../config.js';
-import { RARITIES, SPECIES_BY_ID, BAITS_BY_ID } from '../../shared/rules.js';
+import { GAME, RARITIES, SPECIES_BY_ID, BAITS_BY_ID } from '../../shared/rules.js';
 import { shortAddress } from '../net/wallet.js';
 
 const tmp = new THREE.Vector3();
@@ -12,13 +12,36 @@ export function createHud(app) {
   const ui = document.getElementById('ui');
   const labelsLayer = document.getElementById('labels');
 
+  // ------------------------------------------------------------------ top bar: luck, gold, backpack
+  const chip = (cls, icon, label, onClick) => {
+    const v = h('span.v');
+    const el = h(`button.top-chip.${cls}`, { on: { click: onClick } }, h('span.i', icon), h('span.k', label), v);
+    return { el, v };
+  };
+  const luckChip = chip('luck', '🍀', 'LUCK', () => app.panels.shop('bait'));
+  const goldChip = chip('gold', '✦', 'GOLD', () => app.panels.shop('rods'));
+  const bagChip = chip('bag', '🎒', 'BACKPACK', () => app.panels.backpack());
+  const topBar = h('div.topbar', luckChip.el, goldChip.el, bagChip.el);
+  let onLine = 0; // fish on the stringer during a run, not yet in the backpack
+
+  function renderTop() {
+    const p = app.profile;
+    if (!p) return;
+    luckChip.v.textContent = `${p.luck}`;
+    goldChip.v.textContent = fmt.int(p.cash);
+    bagChip.v.textContent = `${p.storage.length}/${GAME.storageMax}${onLine ? ` +${onLine}` : ''}`;
+    bagChip.el.classList.toggle('full', p.storage.length + onLine >= GAME.storageMax);
+    bagChip.el.title = p.storage.length >= GAME.storageMax
+      ? 'Backpack full: sell at the fish rack, or banking will sell your cheapest fish'
+      : 'Your backpack. Sell fish at the fish rack.';
+  }
+
   // ------------------------------------------------------------------ deck HUD
-  const cash = h('span.hud-cash');
   const best = h('span.hud-best');
   const unlockNum = h('span.num');
   const unlockOf = h('span');
   const unlockBar = h('i');
-  const sub = h('div.hud-sub', 'lifetime cash · sell fish at the rack to fill it');
+  const sub = h('div.hud-sub', 'lifetime gold · sell fish at the rack to fill it');
   const status = h('div');
   const bait = h('div.hud-bait');
   const deck = h('div.hud',
@@ -27,7 +50,7 @@ export function createHud(app) {
       h('button.hud-btn.orange', { on: { click: () => app.goHome() } }, '⌂ HOME'),
     ),
     h('div.hud-card',
-      h('div.hud-row', cash, best),
+      h('div.hud-row', best),
       h('div.hud-unlock', 'POOL UNLOCK ', unlockNum, unlockOf),
       h('div.bar', unlockBar),
       sub,
@@ -38,15 +61,15 @@ export function createHud(app) {
   const hint = h('div.bottom-hint.passive');
   const root = h('div.passive', { style: { position: 'absolute', inset: '0' } }, hint);
   deck.style.pointerEvents = 'auto';
-  root.append(deck);
+  root.append(deck, topBar);
   root.style.display = 'none';
   ui.append(root);
 
   function renderDeck() {
     const p = app.profile;
     if (!p) return;
-    cash.textContent = `✦ ${fmt.int(p.cash)} CASH`;
-    best.textContent = `BEST ${fmt.int(p.best)}`;
+    renderTop();
+    best.textContent = `🏆 BEST RUN ${fmt.int(p.best)}`;
     const gate = CONFIG.earnGate;
     unlockNum.textContent = fmt.int(Math.min(p.lifetimeCash, gate));
     unlockOf.textContent = ` / ${fmt.int(gate)}`;
@@ -84,9 +107,26 @@ export function createHud(app) {
     }
   }
 
+  // Prompt that follows the player along the edge of the pier.
+  const edgeHint = h('div.h');
+  const edgeLabel = h('div.world-label.near', h('div.t', { style: { color: 'var(--teal)' } }, '✦ FISH HERE'), edgeHint);
+  edgeLabel.style.display = 'none';
+  labelsLayer.append(edgeLabel);
+
   function updateLabels(camera, near, visible) {
     ensureLabels();
     const w = window.innerWidth, hgt = window.innerHeight;
+    if (visible && near?.id === 'edge') {
+      tmp.copy(near.pos);
+      tmp.y += 2.1;
+      tmp.project(camera);
+      edgeLabel.style.display = tmp.z > 1 ? 'none' : '';
+      edgeHint.textContent = touch() ? 'tap FISH to cast a line' : '(E) cast a line';
+      edgeLabel.style.left = `${((tmp.x + 1) / 2) * w}px`;
+      edgeLabel.style.top = `${((1 - tmp.y) / 2) * hgt}px`;
+    } else {
+      edgeLabel.style.display = 'none';
+    }
     for (const it of app.world.interactables) {
       const el = labels.get(it.id);
       if (!visible) { el.style.display = 'none'; continue; }
@@ -127,7 +167,7 @@ export function createHud(app) {
     h('div.bar.tension', tenBar),
   );
   reel.style.display = 'none';
-  const fishRoot = h('div.fish-hud', oil, stringer, last, prompt, reel);
+  const fishRoot = h('div.fish-hud.passive', oil, stringer, last, prompt, reel);
   fishRoot.style.display = 'none';
   ui.append(fishRoot);
 
@@ -135,7 +175,7 @@ export function createHud(app) {
   let bannerEl = null;
 
   const fishing = {
-    show() { fishRoot.style.display = ''; hint.textContent = 'click / [Space] to cast · HOLD to reel · (B) bank · (E) leave'; },
+    show() { fishRoot.style.display = ''; hint.textContent = 'click / [Space] to cast · HOLD to reel · (B) bank · (E) stop fishing'; },
     hide() { fishRoot.style.display = 'none'; reel.style.display = 'none'; },
     setOil(msLeft, total) {
       if (msLeft === null) {
@@ -149,6 +189,8 @@ export function createHud(app) {
       oil.classList.toggle('low', msLeft < 15000);
     },
     setRun(run, profile) {
+      onLine = run?.stringer?.length || 0;
+      renderTop();
       strList.replaceChildren();
       const fish = run?.stringer || [];
       if (!fish.length) strList.append(h('div', { style: { color: 'var(--muted)' } }, run ? 'nothing yet — cast!' : 'cast to light the lantern'));
@@ -171,13 +213,13 @@ export function createHud(app) {
           h('div.big', 'CAST A LINE'),
           touch() ? h('div.line', 'tap to cast out') : h('div.line', 'click / ', h('span.kbd', 'Space'), ' to cast out'),
           n ? h('div.line', touch() ? 'tap BANK' : ['press ', h('span.kbd', 'B')], ` to bank your haul (×${mult.toFixed(2)})`) : null,
-          touch() ? null : h('div.small', '(E) leave the jetty'),
+          touch() ? null : h('div.small', '(E) stop fishing'),
         );
       } else if (state === 'casting' || state === 'waiting') {
         add(
           h('div.big', 'WAITING FOR A BITE…'),
           n ? h('div.line', h('span.kbd', 'B'), ` bank your haul (×${mult.toFixed(2)})`) : null,
-          h('div.small', '(E) leave the jetty'),
+          h('div.small', '(E) stop fishing'),
         );
       } else if (state === 'fighting') {
         prompt.append(touch()
@@ -248,7 +290,7 @@ export function createHud(app) {
     setMode(mode) {
       root.style.display = mode === 'walk' || mode === 'fish' || mode === 'sit' ? '' : 'none';
       deck.style.display = mode === 'fish' ? 'none' : '';
-      if (mode === 'walk') hint.textContent = 'click to look · mouse / ←↑↓→ look · WASD walk · Shift run · V view · E interact · P profile';
+      if (mode === 'walk') hint.textContent = 'click to look · WASD walk · Shift run · walk to any edge + E to fish · E interact · V view · P profile';
       if (mode === 'sit') hint.textContent = '(E) stand up';
     },
     updateLabels,

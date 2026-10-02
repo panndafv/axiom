@@ -1,7 +1,7 @@
 # Pier Pressure
 
-A low-poly 3D fishing game for a memecoin. Walk the pier, cast at a jetty, reel fish in against a
-90-second lantern, and sell them for cash to buy better rods and bait. Rare fish can be **cashed in
+A low-poly 3D fishing game for a memecoin. Walk the pier, cast from any edge, reel fish in against
+a 90-second lantern, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
 for a share of a SOL reward pool** funded by the token's creator fees. Only wallets holding at
 least **$50 of the token** can cash in.
 
@@ -42,16 +42,21 @@ With `TOKEN_MINT` empty the server runs in **dev mode**: every wallet passes the
 
 ## How a run works
 
+Walk to any edge of the pier and press E when it says FISH HERE. Then:
+
 1. **Cast** with Space or a click. The bobber lands wherever it lands.
 2. **Wait.** The bite comes on its own.
 3. **Reel.** Hold Space or the mouse. Progress and tension both rise; letting go bleeds tension but
    the fish takes line back. When the fish **surges**, let go or the line snaps.
 4. **Bank or push.** Every landed fish adds +0.10 to the multiplier. **B** banks the stringer ×
-   multiplier into the run score; the multiplier bonus is paid as cash. A **snap loses the whole
+   multiplier into the run score; the multiplier bonus is paid as gold. A **snap loses the whole
    unbanked stringer**.
 
 When the lantern's 90 seconds run out, the run is scored and the stringer is banked automatically.
-Banked fish go to the **fish rack**: sell them for cash, or cash rare ones in at the reward pool.
+Banked fish go in your **backpack**, which holds 15. Sell them for gold at the fish rack, or cash
+rare ones in at the reward pool. If the backpack is full when you bank, the cheapest fish are sold
+to make room (rarer fish are always kept first). The bar at the top of the screen shows your luck,
+gold and backpack.
 
 On the deck: WASD to walk, the mouse or arrow keys to look, Shift to run, E to interact, V to change
 the view, P for your profile, M to mute. On phones there's a joystick, drag-to-look and on-screen
@@ -70,7 +75,7 @@ All of it lives in `shared/rules.js`.
 | Legendary | 0.8%      | ~✦600     | 1%                          |
 | Mythic    | 0.1%      | ~✦2000    | 3%                          |
 
-- **Cash** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Cash has
+- **Gold** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Gold has
   no value outside the game.
 - **Luck** comes from the rod (+0 to +40) plus bait (+6 to +45, used up one per cast). It multiplies
   the weight of every tier above common by `1 + luck/100 × 1.5 × tier`. At 40 luck a mythic is 4×
@@ -80,7 +85,7 @@ All of it lives in `shared/rules.js`.
   never be drained to zero, and more players just means smaller slices. Before a wallet can cash in:
   - it must hold at least `MIN_HOLD_USD` of the token, checked live on-chain with the price from
     DexScreener (Jupiter as fallback);
-  - it must have earned `EARN_GATE` lifetime cash (anti-bot: you have to actually play first);
+  - it must have earned `EARN_GATE` lifetime gold (anti-bot: you have to actually play first);
   - it can take at most `POOL_DAILY_CAP_PCT` of the pool per 24 hours.
 - Cash-ins add to the player's **claimable** SOL. A claim (min 0.01 SOL) queues a payout.
 
@@ -147,5 +152,6 @@ the SQLite file works: a VPS, Fly.io, Railway or Render with a volume. Run it be
 
 - Automatic on-chain payouts. Claims queue for manual payment; a payout worker can be added once the
   fee wallet setup is decided.
-- Buying shop items with the token, or burning it. Everything is bought with in-game cash.
+- Buying shop items with the token, or burning it. Everything is bought with in-game gold.
+- Multiplayer. Each player is alone on their own pier for now.
 - Real-device testing on phones. Touch controls were only tested in an emulator.

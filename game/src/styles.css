@@ -420,7 +420,7 @@ a { color: var(--teal); }
 .fish-hud { position: absolute; inset: 0; pointer-events: none; }
 .oil {
   position: absolute;
-  top: 14px;
+  top: 58px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -457,7 +457,7 @@ a { color: var(--teal); }
 
 .prompt {
   position: absolute;
-  left: 50%;
+  left: 62%; /* beside the angler, who stands left of centre while fishing */
   top: 46%;
   transform: translate(-50%, -50%);
   text-align: center;
@@ -614,4 +614,47 @@ body.touch .bottom-hint, body.touch .key-hints { display: none; }
   .hud-card { padding: 8px 10px; }
   .contract-bar { bottom: 58px; }
   .reel { bottom: 130px; }
+  .prompt { left: 50%; }
+}
+
+/* ------------------------------------------------------------------ top bar */
+
+.topbar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+.top-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 8px;
+  background: rgba(30, 22, 18, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.top-chip:hover { background: rgba(58, 42, 33, 0.95); }
+.top-chip .k { color: var(--muted); font-size: 11px; }
+.top-chip.luck .v { color: var(--green); }
+.top-chip.gold .v, .top-chip.gold .i { color: var(--orange); }
+.top-chip.bag .v { color: var(--teal); }
+.top-chip.bag.full { border-color: var(--red); }
+.top-chip.bag.full .v { color: var(--red); }
+
+@media (max-width: 640px) {
+  .topbar { top: 8px; left: 8px; right: 8px; transform: none; justify-content: center; }
+  .top-chip { padding: 6px 9px; }
+  .top-chip .k { display: none; }
+  .hud { top: 52px; }
+  .fish-hud .oil { top: 52px; }
+  .stringer { top: 104px; }
 }

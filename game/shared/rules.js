@@ -10,7 +10,7 @@ export const GAME = {
   biteMaxMs: 5_200,
   multStep: 0.1,          // every landed fish bumps the stringer multiplier by this (x1.10, x1.20, ...)
   multMax: 3,
-  storageMax: 120,        // cooler size; overflow is auto-sold
+  storageMax: 15,         // backpack size; when it overflows the cheapest fish are sold for gold
   startProgress: 0.18,    // the reel starts with a little line already in
   minClaimLamports: 10_000_000, // 0.01 SOL
 };

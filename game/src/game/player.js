@@ -8,10 +8,11 @@ import { OUTFITS_BY_ID, RODS_BY_ID } from '../../shared/rules.js';
 // fishing spot), 'sit' (watching the sunset from the bench).
 
 const VIEWS = [
-  { dist: 6.2, lift: 1.9 },
-  { dist: 10.5, lift: 2.3 },
-  { dist: 0, lift: 2.05 }, // first person
+  { dist: 5, lift: 1.45 },
+  { dist: 8.5, lift: 1.8 },
+  { dist: 0, lift: 1.45 }, // first person
 ];
+const RADIUS = 0.25; // how close the angler gets to props
 
 const tmpV = new THREE.Vector3();
 const tmpT = new THREE.Vector3();
@@ -91,7 +92,7 @@ export function createPlayer(scene, camera, world, input, settings) {
   function tryMove(nx, nz) {
     if (!world.isWalkable(nx, nz)) return false;
     for (const c of world.colliders) {
-      const r2 = (c.r + 0.32) ** 2;
+      const r2 = (c.r + RADIUS) ** 2;
       const dNew = (nx - c.x) ** 2 + (nz - c.z) ** 2;
       if (dNew >= r2) continue;
       // Already overlapping something (e.g. just stood up from the bench): stepping away from
@@ -126,7 +127,7 @@ export function createPlayer(scene, camera, world, input, settings) {
     state.speed += (target - state.speed) * Math.min(1, dt * 10);
     if (len > 0) {
       mx /= len; mz /= len;
-      const v = 7 * state.speed * dt;
+      const v = 6 * state.speed * dt;
       const nx = state.pos.x + mx * v, nz = state.pos.z + mz * v;
       if (tryMove(nx, nz)) { state.pos.x = nx; state.pos.z = nz; }
       else if (tryMove(nx, state.pos.z)) state.pos.x = nx;
@@ -136,13 +137,15 @@ export function createPlayer(scene, camera, world, input, settings) {
     if (fp) state.facing = dampAngle(state.facing, state.camYaw + Math.PI, 1);
   }
 
+  // The shop, rack, bench etc. win when you are next to one; otherwise any edge of the pier is
+  // a place to fish.
   function nearestInteractable() {
     let best = null, bestD = Infinity;
     for (const it of world.interactables) {
       const d = Math.hypot(it.pos.x - state.pos.x, it.pos.z - state.pos.z);
       if (d < it.radius && d < bestD) { best = it; bestD = d; }
     }
-    return best;
+    return best || world.edgeSpot(state.pos.x, state.pos.z);
   }
 
   function updateCamera(dt, t) {
@@ -176,8 +179,8 @@ export function createPlayer(scene, camera, world, input, settings) {
     } else if (state.mode === 'fish') {
       const s = state.fishSpot;
       const right = tmpR.set(-s.face.z, 0, s.face.x);
-      tmpV.copy(s.pos).addScaledVector(s.face, -5.2).addScaledVector(right, 2.0);
-      tmpV.y = DECK_Y + 3.4;
+      tmpV.copy(s.pos).addScaledVector(s.face, -4.2).addScaledVector(right, 1.6);
+      tmpV.y = DECK_Y + 2.7;
       camPos.lerp(tmpV, k);
       tmpT.copy(s.pos).addScaledVector(s.face, 12).addScaledVector(right, -0.5);
       tmpT.y = 0.8;

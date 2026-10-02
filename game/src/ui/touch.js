@@ -18,11 +18,11 @@ export function createTouchControls(app, input) {
   };
   const act = btn('E', () => app.touchAction('KeyE'), '.big');
   const bank = btn('BANK', () => app.touchAction('KeyB'));
-  const leave = btn('LEAVE', () => app.touchAction('KeyE'));
+  const leave = btn('STOP', () => app.touchAction('KeyE'));
   const view = btn('VIEW', () => app.touchAction('KeyV'));
   const right = h('div.touch-right', view, act);
   const fishBtns = h('div.touch-right', leave, bank);
-  const root = h('div.touch', joy, right, fishBtns);
+  const root = h('div.touch.passive', joy, right, fishBtns);
   ui.append(root);
 
   let joyId = null;

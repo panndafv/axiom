@@ -56,7 +56,7 @@ export function createTitle(app) {
       ['How to play', '', () => app.panels.howTo()],
       ['Leaderboard', p?.best ? `BEST ${fmt.int(p.best)}` : '', () => app.panels.leaderboard()],
       ['Catch log', `${found}/${SPECIES.length} SPECIES`, () => app.panels.catchLog()],
-      ['Profile', p ? `✦${fmt.short(p.cash)} CASH` : '', () => app.panels.profile()],
+      ['Profile', p ? `✦${fmt.short(p.cash)} GOLD` : '', () => app.panels.profile()],
       ['Reward pool', pool ? fmt.sol(pool.availableLamports, 2) : '', () => app.panels.pool()],
       ['Settings', '', () => app.panels.settings()],
       ['Credits', '', () => app.panels.credits()],

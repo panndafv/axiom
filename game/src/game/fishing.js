@@ -213,11 +213,17 @@ export function createFishing({ scene, player, app, hud, input }) {
       return errorToast(err);
     }
 
-    // pick where the bobber lands: "it lands where it lands"
-    const dist = 9 + Math.random() * 7;
-    const side = (Math.random() - 0.5) * 0.7;
+    // Pick where the bobber lands ("it lands where it lands"), but always in open water: from
+    // some edges another deck or the lighthouse rocks are in the way, so try shorter casts and
+    // other angles until one clears.
     const right = new THREE.Vector3(-spot.face.z, 0, spot.face.x);
-    bobberRest.copy(spot.pos).addScaledVector(spot.face, dist).addScaledVector(right, dist * side);
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const reach = Math.max(0.25, 1 - attempt / 20);
+      const dist = 2.5 + (6.5 + Math.random() * 7) * reach;
+      const side = (Math.random() - 0.5) * (0.7 + attempt * 0.05);
+      bobberRest.copy(spot.pos).addScaledVector(spot.face, dist).addScaledVector(right, dist * side);
+      if (app.world.isOverWater(bobberRest.x, bobberRest.z)) break;
+    }
     bobberRest.y = 0.02;
     shore.copy(spot.pos).addScaledVector(spot.face, 1.6);
     shore.y = 0.02;
@@ -334,7 +340,7 @@ export function createFishing({ scene, player, app, hud, input }) {
       setRun(res.run);
       sfx.bank();
       hud.fishing.banner(`+${res.score} banked${res.mult > 1 ? ` ×${res.mult.toFixed(2)}` : ''}`, 'bank');
-      if (res.autoSold) app.toast(`Rack full: ${res.autoSold} fish sold for ✦${res.autoSoldCash}`);
+      if (res.autoSold) app.toast(`🎒 Backpack full: sold your ${res.autoSold} cheapest fish for ✦${res.autoSoldCash}`);
       refreshPrompt();
     } catch (err) {
       errorToast(err);

@@ -72,6 +72,7 @@ export function createPanels(app) {
       cls: 'teal',
       render: () => [
         h('h3', 'One cast, four beats'),
+        h('p', 'Walk to any edge of the pier and press ', kbd('E'), ' when it says FISH HERE.'),
         h('p', h('b', '1 · CAST'), ' — ', kbd('Space'), ' or click. The bobber lands where it lands.'),
         h('p', h('b', '2 · WAIT'), ' — a bite comes on its own. Nothing to time.'),
         h('p', h('b', '3 · REEL'), ' — HOLD ', kbd('Space'), ' or the mouse to pull. Progress and tension both rise; release to bleed tension while progress slips. When the fish ',
@@ -79,14 +80,14 @@ export function createPanels(app) {
         h('p', h('b', '4 · BANK OR PUSH'), ` — every landed fish bumps the multiplier (+${GAME.multStep.toFixed(2)}). `, kbd('B'),
           ' banks stringer × multiplier into the run. A snap loses the ', h('b', 'whole unbanked stringer'), '. When the oil runs out, ', kbd('R'), ' closes the results.'),
         h('h3', 'Luck'),
-        h('p', 'Rods and bait add 🍀 luck. More luck means rarer fish bite more often. Buy them at the ⚓ shop with the cash you make selling fish.'),
+        h('p', 'Rods and bait add 🍀 luck. More luck means rarer fish bite more often. Buy them at the ⚓ shop with the gold you make selling fish.'),
         h('h3', 'The lantern'),
-        h('p', `One lantern burns for ${GAME.oilMs / 1000} seconds. When the oil is out the run is scored. Banked fish go to the fish rack on the deck: sell them for cash any time, or hold the rare ones and cash them in at the reward pool.`),
+        h('p', `One lantern burns for ${GAME.oilMs / 1000} seconds. When the oil is out the run is scored. Banked fish go in your 🎒 backpack, which holds ${GAME.storageMax}. Sell them for gold at the fish rack, or hold the rare ones and cash them in at the reward pool. If the backpack is full when you bank, your cheapest fish are sold to make room.`),
         h('h3', 'The reward pool'),
-        h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills a SOL pool. Rare, Epic, Legendary and Mythic fish can be cashed in for a fixed % of whatever is in the pool at that moment — the rarer the fish, the bigger the slice. To cash in you need a connected wallet holding at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}, and ${fmt.int(CONFIG.earnGate)} lifetime cash from selling fish.`),
+        h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills a SOL pool. Rare, Epic, Legendary and Mythic fish can be cashed in for a fixed % of whatever is in the pool at that moment — the rarer the fish, the bigger the slice. To cash in you need a connected wallet holding at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}, and ${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish.`),
         h('h3', 'On the deck'),
         h('p', kbd('W'), kbd('A'), kbd('S'), kbd('D'), ' walk · mouse or arrows look (click to grab the mouse) · ', kbd('Shift'), ' run · ', kbd('E'),
-          ' interact (jetty, shop, rod rack, fish rack, scores, reward chest) · ', kbd('E'), ' leave the jetty · ', kbd('V'), ' view · ', kbd('P'), ' profile · ', kbd('M'), ' mute · ⌂ HOME (top left) comes back to the title.'),
+          ' interact (pier edge, shop, rod rack, fish rack, scores, reward chest) · ', kbd('E'), ' stop fishing · ', kbd('V'), ' view · ', kbd('P'), ' profile · ', kbd('M'), ' mute · ⌂ HOME (top left) comes back to the title.'),
       ],
     });
   }
@@ -101,11 +102,42 @@ export function createPanels(app) {
     });
   }
 
+  // What you are carrying. Selling happens at the fish rack, so this is a view.
+  function backpack() {
+    open('backpack', {
+      title: '🎒 Backpack',
+      render: () => {
+        const pr = p();
+        const worth = (f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].order * 1e6 + f.value;
+        const fish = [...pr.storage].sort((a, b) => worth(b) - worth(a));
+        const total = fish.reduce((s, f) => s + f.value, 0);
+        const full = fish.length >= GAME.storageMax;
+        return [
+          h('div.stat-line', h('span', `${fish.length} / ${GAME.storageMax} fish`), h('span.cash', `worth ✦${fmt.int(total)}`)),
+          h('p.note', full
+            ? 'Your backpack is full. If you bank more fish, the cheapest ones are sold automatically.'
+            : 'Sell fish for gold at the ✦ FISH RACK on the main deck. Cash rare ones in at the ◆ REWARD POOL chest.'),
+          fish.length
+            ? h('div.rows', fish.map((f) => {
+              const sp = SPECIES_BY_ID[f.sp];
+              return h('div.row',
+                rarityTag(sp.rarity),
+                h('div.fish-name', fishIcon(sp, 40), h('span', sp.name)),
+                h('span.muted', fmt.kg(f.kg)),
+                h('span.val', `✦${f.value}`),
+                h('span'));
+            }))
+            : h('div.empty', 'Empty. Catch some fish and press B to bank them.'),
+        ];
+      },
+    });
+  }
+
   function poolStatus() {
     const pr = p();
     if (isGuest()) return { ok: false, why: 'connect a wallet on the title screen to cash in rare fish for SOL from the reward pool (RARE, EPIC, LEGENDARY, MYTHIC)' };
     if (!app.holding?.ok) return { ok: false, why: `hold at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in this wallet to cash in rare fish` };
-    if (pr.lifetimeCash < CONFIG.earnGate) return { ok: false, why: `sell ${fmt.int(CONFIG.earnGate - pr.lifetimeCash)} more cash worth of fish to unlock cash-ins` };
+    if (pr.lifetimeCash < CONFIG.earnGate) return { ok: false, why: `sell ${fmt.int(CONFIG.earnGate - pr.lifetimeCash)} more gold worth of fish to unlock cash-ins` };
     return { ok: true, why: 'rare fish and up can be cashed in for a share of the reward pool' };
   }
 
@@ -150,11 +182,11 @@ export function createPanels(app) {
 
     const rareIds = pr.storage.filter((f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].poolPct > 0).map((f) => f.id);
     return [
-      h('div.stat-line', h('span.cash', `✦ ${fmt.int(pr.cash)} cash`), h('span.sol', `▲ ${fmt.sol(pr.claimable)} claimable`)),
+      h('div.stat-line', h('span.cash', `✦ ${fmt.int(pr.cash)} gold`), h('span.sol', `▲ ${fmt.sol(pr.claimable)} claimable`)),
       h('p.note', status.why),
       rows.length ? h('div.rows', rows) : h('div.empty', 'Nothing on the rack yet. Bank some fish at a fishing spot.'),
       h('div.row-foot',
-        h('span', `${pr.storage.length} fish on the rack (holds ${GAME.storageMax})`),
+        h('span', `🎒 ${pr.storage.length} / ${GAME.storageMax} in your backpack`),
         h('div', { style: { display: 'flex', gap: '8px' } },
           rareIds.length && status.ok ? h('button.pill-btn.teal', { on: { click: () => cashIn(rareIds) } }, `cash in all rare+ (${rareIds.length})`) : null,
           h('button.pill-btn', {
@@ -189,7 +221,7 @@ export function createPanels(app) {
     open('shop', {
       title: '⚓ Tackle shop',
       cls: 'wide',
-      headExtra: () => h('span', { style: { marginLeft: 'auto', fontSize: '14px' } }, h('span.cash', `✦ ${fmt.int(p().cash)} cash`)),
+      headExtra: () => h('span', { style: { marginLeft: 'auto', fontSize: '14px' } }, h('span.cash', `✦ ${fmt.int(p().cash)} gold`)),
       render: renderShop,
     });
   }
@@ -348,8 +380,8 @@ export function createPanels(app) {
             : h('p', 'Wallet ', h('b', { style: { fontFamily: 'ui-monospace, monospace' } }, shortAddress(app.session.wallet)), ' ',
               h('button.pill-btn.dark', { on: { click: () => { close(); app.disconnect(); } } }, 'disconnect')),
           h('div.results-grid',
-            stat('cash', `✦${fmt.int(pr.cash)}`),
-            stat('lifetime cash', fmt.int(pr.lifetimeCash)),
+            stat('gold', `✦${fmt.int(pr.cash)}`),
+            stat('lifetime gold', fmt.int(pr.lifetimeCash)),
             stat('best run', fmt.int(pr.best)),
             stat('runs', fmt.int(pr.runs)),
             stat('fish landed', fmt.int(pr.landed)),
@@ -363,7 +395,7 @@ export function createPanels(app) {
               check(!!hold?.ok, hold?.dev ? `holding check off (dev mode)` : hold?.ok
                 ? `holding ${fmt.int(hold.balance)} $${CONFIG.tokenSymbol} ≈ ${fmt.usd(hold.usd)}`
                 : hold?.error ? `couldn't check holdings: ${hold.error}` : `holding ${fmt.int(hold?.balance || 0)} $${CONFIG.tokenSymbol} ≈ ${fmt.usd(hold?.usd || 0)} — need $${CONFIG.minHoldUsd}`),
-              check(pr.lifetimeCash >= CONFIG.earnGate, `lifetime cash ${fmt.int(pr.lifetimeCash)} / ${fmt.int(CONFIG.earnGate)}`),
+              check(pr.lifetimeCash >= CONFIG.earnGate, `lifetime gold ${fmt.int(pr.lifetimeCash)} / ${fmt.int(CONFIG.earnGate)}`),
             ),
             h('p', 'claimable ', h('span.sol', fmt.sol(pr.claimable)), ' · earned all-time ', h('span.sol', fmt.sol(pr.totalEarned))),
             h('div', { style: { display: 'flex', gap: '8px' } },
@@ -411,12 +443,12 @@ export function createPanels(app) {
             })),
           h('h3', 'Your status'),
           isGuest()
-            ? h('p', 'Guests can fish and sell for cash. ', h('button.pill-btn.teal', { on: { click: () => { close(); app.connectWallet(); } } }, 'connect wallet'), ' to cash in.')
+            ? h('p', 'Guests can fish and sell for gold. ', h('button.pill-btn.teal', { on: { click: () => { close(); app.connectWallet(); } } }, 'connect wallet'), ' to cash in.')
             : [
               h('div.check-list',
                 check(true, `wallet ${shortAddress(app.session.wallet)}`),
                 check(!!app.holding?.ok, app.holding?.dev ? 'holding check off (dev mode)' : `holds ≥ $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}${app.holding ? ` (now ${fmt.usd(app.holding.usd || 0)})` : ''}`),
-                check(pr.lifetimeCash >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} lifetime cash (${fmt.int(pr.lifetimeCash)})`),
+                check(pr.lifetimeCash >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} lifetime gold (${fmt.int(pr.lifetimeCash)})`),
               ),
               h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.05)} of the pool.` : status.why),
               h('div.stat-line', { style: { marginTop: '10px' } },
@@ -476,7 +508,7 @@ export function createPanels(app) {
       render: () => [
         h('p', `${CONFIG.gameName} — a fishing game for $${CONFIG.tokenSymbol} holders.`),
         h('p.muted', 'Built with three.js. Every model, texture and sound is generated in code.'),
-        h('p.muted', 'Cash and items have no value outside the game. Pool cash-ins are paid in SOL from the creator-fee pool, at the rates shown in the reward pool.'),
+        h('p.muted', 'Gold and items have no value outside the game. Pool cash-ins are paid in SOL from the creator-fee pool, at the rates shown in the reward pool.'),
       ],
     });
   }
@@ -522,7 +554,7 @@ export function createPanels(app) {
   }
 
   return {
-    howTo, rack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, results, noWallet,
+    howTo, rack, backpack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, results, noWallet,
     close, rerender,
     get open() { return current?.name || null; },
   };

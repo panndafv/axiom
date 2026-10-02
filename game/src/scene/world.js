@@ -15,13 +15,13 @@ export const DECK_Y = 2.0;
 const DECKS = [
   { id: 'main',     x0: -10,   x1: 10,   z0: -7,   z1: 7,    dir: 'z' },
   { id: 'north',    x0: -1.6,  x1: 1.6,  z0: -21,  z1: -7,   dir: 'z' },
-  { id: 'northEnd', x0: -4.5,  x1: 4.5,  z0: -26,  z1: -21,  dir: 'x', gaps: { z0: [[-1.1, 1.1]] } },
+  { id: 'northEnd', x0: -4.5,  x1: 4.5,  z0: -26,  z1: -21,  dir: 'x' },
   { id: 'west',     x0: -17.2, x1: -10,  z0: -5.6, z1: -2.4, dir: 'x', open: ['x0'] },
   { id: 'east',     x0: 10,    x1: 16,   z0: -1.6, z1: 1.6,  dir: 'x' },
-  { id: 'eastDeck', x0: 16,    x1: 30,   z0: -7,   z1: 7,    dir: 'z', gaps: { z0: [[25.9, 28.1]] } },
+  { id: 'eastDeck', x0: 16,    x1: 30,   z0: -7,   z1: 7,    dir: 'z' },
   // west pier, mirroring the shop deck on the other side of the main deck
   { id: 'westWalk', x0: -16,   x1: -10,  z0: 3.4,  z1: 6.6,  dir: 'x' },
-  { id: 'westDeck', x0: -29,   x1: -16,  z0: 3,    z1: 13,   dir: 'z', gaps: { x0: [[6.9, 9.1]] } },
+  { id: 'westDeck', x0: -29,   x1: -16,  z0: 3,    z1: 13,   dir: 'z' },
 ];
 const LIGHTHOUSE = { x: -22, z: -4, r: 5, towerR: 2.15 };
 
@@ -30,32 +30,50 @@ const PLANK_COLORS = ['#c98b52', '#b87a45', '#d49a5e', '#c2844b'].map((c) => new
 // ---------------------------------------------------------------------------------------------
 // Deck geometry
 
-function sideIntervals(deck, side) {
-  // Which parts of this side are touching another deck (so get no railing)?
+// Parts of a deck side that face open water (not joined to another deck). Players can fish from
+// anywhere along these.
+function waterIntervals(deck, side) {
   const horizontal = side === 'z0' || side === 'z1';
   const line = deck[side];
   const [a0, a1] = horizontal ? [deck.x0, deck.x1] : [deck.z0, deck.z1];
-  const gaps = [...(deck.gaps?.[side] || [])];
-  if (deck.open?.includes(side)) gaps.push([a0, a1]);
+  const joins = [];
+  if (deck.open?.includes(side)) joins.push([a0, a1]);
   for (const other of DECKS) {
     if (other === deck) continue;
     const [o0, o1] = horizontal ? [other.z0, other.z1] : [other.x0, other.x1];
     if (!(o0 <= line + 0.3 && o1 >= line - 0.3)) continue;
     const [b0, b1] = horizontal ? [other.x0, other.x1] : [other.z0, other.z1];
     const g0 = Math.max(a0, b0), g1 = Math.min(a1, b1);
-    if (g1 - g0 > 0.1) gaps.push([g0, g1]);
+    if (g1 - g0 > 0.1) joins.push([g0, g1]);
   }
-  gaps.sort((p, q) => p[0] - q[0]);
-  // the railed parts are what is left between the gaps
-  const railed = [];
+  joins.sort((p, q) => p[0] - q[0]);
+  const water = [];
   let cur = a0;
-  for (const [g0, g1] of gaps) {
-    if (g0 - cur > 0.3) railed.push([cur, g0]);
+  for (const [g0, g1] of joins) {
+    if (g0 - cur > 0.3) water.push([cur, g0]);
     cur = Math.max(cur, g1);
   }
-  if (a1 - cur > 0.3) railed.push([cur, a1]);
-  const fullyOpen = railed.length === 0;
-  return { railed, fullyOpen };
+  if (a1 - cur > 0.3) water.push([cur, a1]);
+  return water;
+}
+
+const SIDE_NORMALS = { z0: [0, -1], z1: [0, 1], x0: [-1, 0], x1: [1, 0] };
+
+// Adds this deck's water edges to `edges` and returns which sides are fully joined to a neighbour.
+function collectEdges(deck, edges) {
+  const joined = {};
+  for (const side of Object.keys(SIDE_NORMALS)) {
+    const water = waterIntervals(deck, side);
+    joined[side] = water.length === 0;
+    const [nx, nz] = SIDE_NORMALS[side];
+    const horizontal = side === 'z0' || side === 'z1';
+    for (const [a0, a1] of water) {
+      edges.push(horizontal
+        ? { ax: a0, az: deck[side], bx: a1, bz: deck[side], nx, nz }
+        : { ax: deck[side], az: a0, bx: deck[side], bz: a1, nx, nz });
+    }
+  }
+  return joined;
 }
 
 function plankGeometry(len, width, color, uOffset) {
@@ -122,54 +140,6 @@ function buildDeck(deck, plankMat, root, pilings) {
   }
 }
 
-function rope(a, b, sag = 0.32) {
-  const mid = a.clone().lerp(b, 0.5);
-  mid.y -= sag;
-  const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
-  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 8, 0.035, 4), mat('#e3c38a'));
-  m.castShadow = true;
-  m.userData.static = true;
-  return m;
-}
-
-function railingRun(root, from, to) {
-  const len = from.distanceTo(to);
-  const n = Math.max(1, Math.ceil(len / 2.2));
-  const posts = [];
-  for (let i = 0; i <= n; i++) {
-    const p = from.clone().lerp(to, i / n);
-    const post = box(0.17, 1.12, 0.17, '#8e5a32');
-    post.position.set(p.x, DECK_Y + 0.56, p.z);
-    root.add(post);
-    posts.push(p);
-  }
-  const dir = to.clone().sub(from);
-  const rail = box(len + 0.2, 0.12, 0.2, '#b77a45');
-  rail.position.copy(from).lerp(to, 0.5).setY(DECK_Y + 1.12);
-  rail.rotation.y = -Math.atan2(dir.z, dir.x);
-  root.add(rail);
-  for (let i = 0; i < posts.length - 1; i++) {
-    root.add(rope(posts[i].clone().setY(DECK_Y + 0.74), posts[i + 1].clone().setY(DECK_Y + 0.74)));
-  }
-}
-
-function buildRailings(deck, root) {
-  const inset = 0.12;
-  const sides = {
-    z0: (a) => new THREE.Vector3(a, 0, deck.z0 + inset),
-    z1: (a) => new THREE.Vector3(a, 0, deck.z1 - inset),
-    x0: (a) => new THREE.Vector3(deck.x0 + inset, 0, a),
-    x1: (a) => new THREE.Vector3(deck.x1 - inset, 0, a),
-  };
-  const result = {};
-  for (const side of Object.keys(sides)) {
-    const { railed, fullyOpen } = sideIntervals(deck, side);
-    result[side] = fullyOpen;
-    for (const [a0, a1] of railed) railingRun(root, sides[side](a0), sides[side](a1));
-  }
-  return result;
-}
-
 // ---------------------------------------------------------------------------------------------
 
 function ripples(points) {
@@ -218,16 +188,17 @@ export function createWorld(scene) {
 
   const pilings = [];
   const walkRects = [];
+  const edges = [];
   for (const deck of DECKS) {
     buildDeck(deck, plankMat, root, pilings);
-    const open = buildRailings(deck, root);
-    // Walkable area: pulled in from railed sides, pushed out over open sides so it overlaps the
-    // neighbouring deck and the player can walk across.
+    const joined = collectEdges(deck, edges);
+    // Walkable area: stops just short of the water, and runs on over joined sides so it overlaps
+    // the neighbouring deck and the player can walk across.
     walkRects.push({
-      x0: deck.x0 + (open.x0 ? -0.6 : 0.45),
-      x1: deck.x1 - (open.x1 ? -0.6 : 0.45),
-      z0: deck.z0 + (open.z0 ? -0.6 : 0.45),
-      z1: deck.z1 - (open.z1 ? -0.6 : 0.45),
+      x0: deck.x0 + (joined.x0 ? -0.6 : 0.3),
+      x1: deck.x1 - (joined.x1 ? -0.6 : 0.3),
+      z0: deck.z0 + (joined.z0 ? -0.6 : 0.3),
+      z1: deck.z1 - (joined.z1 ? -0.6 : 0.3),
     });
   }
 
@@ -245,30 +216,6 @@ export function createWorld(scene) {
   const lh = lighthouse();
   lh.position.set(LH.x, DECK_Y, LH.z);
   root.add(lh);
-  // ring railing, open toward the walkway (east)
-  const ringPosts = [];
-  for (let i = 0; i < 28; i++) {
-    const a = (i / 28) * Math.PI * 2;
-    const deg = Math.abs(((a * 180) / Math.PI + 180) % 360 - 180);
-    if (deg < 22) continue;
-    ringPosts.push(new THREE.Vector3(LH.x + Math.cos(a) * (LH.r - 0.2), 0, LH.z + Math.sin(a) * (LH.r - 0.2)));
-  }
-  for (let i = 0; i < ringPosts.length; i++) {
-    const p = ringPosts[i];
-    const post = box(0.17, 1.12, 0.17, '#8e5a32');
-    post.position.set(p.x, DECK_Y + 0.56, p.z);
-    root.add(post);
-    const q = ringPosts[i + 1];
-    if (q && p.distanceTo(q) < 1.5) {
-      root.add(rope(p.clone().setY(DECK_Y + 0.74), q.clone().setY(DECK_Y + 0.74), 0.18));
-      const rail = box(p.distanceTo(q) + 0.15, 0.12, 0.2, '#b77a45');
-      const dir = q.clone().sub(p);
-      rail.position.copy(p).lerp(q, 0.5).setY(DECK_Y + 1.12);
-      rail.rotation.y = -Math.atan2(dir.z, dir.x);
-      root.add(rail);
-    }
-  }
-
   // ---------------------------------------------------------------------------------------------
   // Props
 
@@ -360,7 +307,7 @@ export function createWorld(scene) {
   place(cooler(), 17.6, -2.9, { rot: 0.3, r: 0.6 });
   place(chest(), 20.6, -5.9, { rot: -0.15, r: 0.75 });
   place(buoy(), 16.9, 5.9, { r: 0.45 });
-  place(bench(), 22.0, 6.15, { rot: Math.PI, r: 0.9 });
+  place(bench(), 22.0, 6.15, { rot: Math.PI, r: 0.75, scale: 0.8 });
   place(barrel(), 27.1, 1.0, { r: 0.55 });
   place(barrel('#c86f35'), 28.6, 1.4, { rot: 1, r: 0.55 });
   place(crate(), 28.4, 3.9, { rot: 0.1, r: 0.65 });
@@ -372,7 +319,7 @@ export function createWorld(scene) {
   npc.root.rotation.y = -Math.PI / 2;
   npc.rodInHand();
   dynamic.add(npc.root);
-  colliders.push({ x: 27.6, z: 2.6, r: 0.55 });
+  colliders.push({ x: 27.6, z: 2.6, r: 0.45 });
 
   // distant scenery
   place(island(13), 80, -140, { y: 0 });
@@ -410,16 +357,7 @@ export function createWorld(scene) {
   // ---------------------------------------------------------------------------------------------
   // Things you can walk up to and press E on.
 
-  const fishSpot = (id, x, z, fx, fz) => ({
-    id, kind: 'fish', pos: new THREE.Vector3(x, DECK_Y, z), face: new THREE.Vector3(fx, 0, fz).normalize(),
-    title: 'FISHING SPOT', hint: '(E) cast a line', color: '#4fe0cf', icon: '✦', radius: 2.6,
-  });
-  const lhSpotDir = new THREE.Vector3(-0.6, 0, -0.8);
   const interactables = [
-    fishSpot('north', 0, -25.25, 0, -1),
-    fishSpot('lighthouse', LH.x + lhSpotDir.x * 3.9, LH.z + lhSpotDir.z * 3.9, lhSpotDir.x, lhSpotDir.z),
-    fishSpot('east', 27, -6.25, 0, -1),
-    fishSpot('west', -28.25, 8, -1, 0),
     { id: 'shop', kind: 'shop', pos: new THREE.Vector3(27.6, DECK_Y, 2.6), title: 'SHOP', hint: '(E) trade', color: '#ffb547', icon: '⚓', radius: 2.8 },
     {
       id: 'rest', kind: 'rest', pos: new THREE.Vector3(22, DECK_Y, 6.0), title: 'REST', hint: '(E) sit', color: '#b98cff', icon: '✦', radius: 2.3,
@@ -431,7 +369,7 @@ export function createWorld(scene) {
     { id: 'rods', kind: 'rods', pos: new THREE.Vector3(8.9, DECK_Y, -6.35), title: 'RODS', hint: '(E) swap', color: '#4fe0cf', icon: '✦', radius: 2.2 },
   ];
 
-  const walk = { rects: walkRects, circle: { x: LH.x, z: LH.z, r: LH.r - 0.55 } };
+  const walk = { rects: walkRects, circle: { x: LH.x, z: LH.z, r: LH.r - 0.35 } };
 
   function isWalkable(x, z) {
     for (const r of walk.rects) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return true;
@@ -439,10 +377,50 @@ export function createWorld(scene) {
     return (x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r;
   }
 
+  // Where the player would stand to fish if they are at the edge of the pier, or null. The spot
+  // sits just inside the edge and faces straight out over the water.
+  const EDGE_REACH = 0.95;
+  function edgeSpot(x, z) {
+    let best = null;
+    let bestD = EDGE_REACH;
+    for (const e of edges) {
+      const ex = e.bx - e.ax, ez = e.bz - e.az;
+      const t = THREE.MathUtils.clamp(((x - e.ax) * ex + (z - e.az) * ez) / (ex * ex + ez * ez), 0, 1);
+      const px = e.ax + ex * t, pz = e.az + ez * t;
+      const d = Math.hypot(x - px, z - pz);
+      if (d < bestD) { bestD = d; best = { px, pz, nx: e.nx, nz: e.nz }; }
+    }
+    // round lighthouse platform, except where the walkway joins it (east)
+    const dx = x - LH.x, dz = z - LH.z;
+    const dc = Math.hypot(dx, dz);
+    const towardWalkway = dx > 0 && Math.abs(Math.atan2(dz, dx)) < (24 * Math.PI) / 180;
+    if (dc > 0 && dc <= LH.r && LH.r - dc < bestD && !towardWalkway) {
+      bestD = LH.r - dc;
+      best = { px: LH.x + (dx / dc) * LH.r, pz: LH.z + (dz / dc) * LH.r, nx: dx / dc, nz: dz / dc };
+    }
+    if (!best) return null;
+    return {
+      id: 'edge', kind: 'fish', title: 'FISH HERE', hint: '(E) cast a line', color: '#4fe0cf', icon: '✦',
+      pos: new THREE.Vector3(best.px - best.nx * 0.4, DECK_Y, best.pz - best.nz * 0.4),
+      face: new THREE.Vector3(best.nx, 0, best.nz),
+    };
+  }
+
+  // True when a bobber can land here: open water, clear of the decks, the lighthouse rocks and
+  // the moored boat.
+  function isOverWater(x, z) {
+    for (const d of DECKS) if (x > d.x0 - 0.8 && x < d.x1 + 0.8 && z > d.z0 - 0.8 && z < d.z1 + 0.8) return false;
+    if (Math.hypot(x - LH.x, z - LH.z) < LH.r + 2.5) return false;
+    if (Math.hypot(x - boat.position.x, z - boat.position.z) < 2.4) return false;
+    return true;
+  }
+
   return {
     interactables,
     colliders,
     isWalkable,
+    edgeSpot,
+    isOverWater,
     spawn: { pos: new THREE.Vector3(0, DECK_Y, 3.5), yaw: Math.PI },
     npc,
     lights,
