@@ -308,7 +308,6 @@ export function createFishing({ scene, player, app, hud, input }) {
     to.y -= 0.6;
     landed = { mesh, t: 0, from: bobber.position.clone(), to };
     hud.fishing.reveal(sp, fish, isNew);
-    hud.fishing.lastCatch(`${rarity.label} · ${sp.name} +${fish.value}`, rarity.color);
   }
 
   // ------------------------------------------------------------------------------------------

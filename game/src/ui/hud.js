@@ -183,7 +183,6 @@ export function createHud(app) {
 
   // ------------------------------------------------------------------ fishing HUD
   const prompt = h('div.prompt');
-  const last = h('div.last-catch');
   const progBar = h('i');
   const tenBar = h('i');
   const reelTag = h('span');
@@ -194,7 +193,7 @@ export function createHud(app) {
     h('div.bar.tension', tenBar),
   );
   reel.style.display = 'none';
-  const fishRoot = h('div.fish-hud.passive', last, prompt, reel);
+  const fishRoot = h('div.fish-hud.passive', prompt, reel);
   fishRoot.style.display = 'none';
   ui.append(fishRoot);
 
@@ -273,10 +272,6 @@ export function createHud(app) {
       const el = revealEl;
       setTimeout(() => { el.style.transition = 'opacity 0.4s'; el.style.opacity = '0'; }, 1700);
       setTimeout(() => el.remove(), 2200);
-    },
-    lastCatch(text, color) {
-      last.textContent = text;
-      last.style.color = color;
     },
     banner(text, kind = 'info') {
       bannerEl?.remove();
