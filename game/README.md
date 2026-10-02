@@ -157,9 +157,18 @@ The server also speaks WebSocket on `/ws`. Players are put in the lowest-numbere
 (25 per lobby) and see everyone in it walk, fish and change rods, with name tags (short wallet
 address, or `guest-xxxx`). Every new player gets a random shirt (10 colours) and hair colour (5),
 saved with their profile. When a signed-in player lands an Epic or rarer fish, the rest of their
-lobby gets a shout-out. There is no chat. Positions are cosmetic: fish, gold and the pool never go
+lobby gets a shout-out. Each lobby has a chat (top left; Enter to type): one line per player
+every 5 seconds, up to 120 characters, and links and wallet/token addresses are refused because
+in a token's game they are nearly always scams. Positions are cosmetic: fish, gold and the pool never go
 over the socket. Lobbies live in memory, so run one server instance (Render's single instance is
 fine).
+
+## Pausing the game
+
+Set `MAINTENANCE=1` (or `MAINTENANCE=Back at 6pm!` for your own message) in the host's environment.
+Players then see a PAUSED card on the title instead of the play buttons, and the game API and
+lobbies refuse everything until you remove it. Admin routes still work and payouts already on their
+way still finish. Nothing is lost: progress and the pool stay as they were.
 
 ## Cheating
 

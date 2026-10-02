@@ -78,8 +78,11 @@ export function createLobbyClient(handlers) {
       if (sock) { sock.onclose = null; sock.close(); }
       handlers.disconnected?.();
     },
+    // true if it went out
     send(msg) {
-      if (ws?.readyState === 1) ws.send(JSON.stringify(msg));
+      if (ws?.readyState !== 1) return false;
+      ws.send(JSON.stringify(msg));
+      return true;
     },
     get connected() { return ws?.readyState === 1; },
   };

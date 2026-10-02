@@ -113,6 +113,7 @@ const keyWallet = poolSecretKey ? bs58.encode(poolSecretKey.slice(32)) : '';
 const poolWallet = solanaAddress('POOL_WALLET') || keyWallet;
 if (keyWallet && poolWallet !== keyWallet) throw new Error('POOL_WALLET does not match POOL_SECRET_KEY; set just one of them');
 const solanaRpcUrl = str('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com');
+const maintenance = str('MAINTENANCE', '');
 const solanaCluster = str('SOLANA_CLUSTER', '') || (/devnet/i.test(solanaRpcUrl) ? 'devnet' : 'mainnet');
 // Without a mint every wallet passes the holding check, so real SOL must never pay out that way.
 if (poolSecretKey && !tokenMint && solanaCluster === 'mainnet') {
@@ -147,6 +148,11 @@ export const config = {
   priorityFeeMicroLamports: num('PRIORITY_FEE_MICROLAMPORTS', 10_000),
   poolReserveLamports: Math.round(num('POOL_RESERVE_SOL', 0.05) * LAMPORTS_PER_SOL),
   adminKey: str('ADMIN_KEY', ''),
+  // Pauses the game: players see this message (MAINTENANCE=1 gives a default one) and nobody can
+  // play, fish or cash in until it is removed. Admin routes and payouts already owed keep working.
+  maintenance: !maintenance || maintenance === '0' ? ''
+    : ['1', 'true', 'yes', 'on'].includes(maintenance.toLowerCase()) ? 'Drift is paused for a little while. Back soon!'
+      : maintenance.slice(0, 200),
   // Dev mode only: fake SOL put in an empty test pool at startup, so cash-ins can be tried
   // without the admin API. Ignored once TOKEN_MINT is set.
   seedPoolLamports: Math.round(num('SEED_POOL_SOL', 0) * LAMPORTS_PER_SOL),

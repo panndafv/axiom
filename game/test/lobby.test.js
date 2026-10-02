@@ -161,3 +161,32 @@ test('the Beacon rod can only be taken by a wallet whose player is up the lighth
   assert.equal(ok.profile.rod, 'beacon');
   await climber.close();
 });
+
+test('lobby chat: everyone sees a line, one line per 5 seconds, no links, newcomers see the last lines', async () => {
+  const a = client({ guest: 'aaaa0001', name: 'Reel Deal' });
+  await a.next('welcome');
+  const b = client({ guest: 'bbbb0002' });
+  await b.next('welcome');
+
+  a.send({ t: 'chat', text: '  hello   pier  ' });
+  const seenByB = await b.next('chat');
+  const seenByA = await a.next('chat');
+  assert.equal(seenByB.text, 'hello pier');
+  assert.equal(seenByB.name, 'Reel Deal');
+  assert.equal(seenByA.id, seenByB.id);
+
+  a.send({ t: 'chat', text: 'again' });
+  const slow = await a.next('chat_no');
+  assert.match(slow.why, /again in \d+s/);
+  assert.ok(slow.waitMs > 0 && slow.waitMs <= 5000);
+
+  b.send({ t: 'chat', text: 'claim at drift-airdrop.xyz' });
+  assert.match((await b.next('chat_no')).why, /Links/);
+  b.send({ t: 'chat', text: '<b>hi</b>' });
+  assert.equal((await a.next('chat')).text, '<b>hi</b>', 'sent as text; the page shows it as text');
+
+  const c = client({ guest: 'cccc0003' });
+  const welcome = await c.next('welcome');
+  assert.deepEqual(welcome.chat.map((m) => m.text), ['hello pier', '<b>hi</b>']);
+  await Promise.all([a.close(), b.close(), c.close()]);
+});

@@ -100,6 +100,7 @@ const routes = {
     poolMode: config.poolMode,
     autoPayouts: config.autoPayouts,
     cluster: config.solanaCluster,
+    maintenance: config.maintenance,
     dev: config.dev,
     // For checking a deploy from the browser: which commit is running, and how many wallets
     // TEST_WALLETS gave it (never which ones).
@@ -421,6 +422,9 @@ async function handleApi(req, res, url) {
     return;
   }
   if (!allowRequest(clientIp(req))) throw new GameError('rate_limit', 'Slow down a little.', 429);
+  if (config.maintenance && !/^\/api\/(config|health|admin\/)/.test(url.pathname)) {
+    throw new GameError('maintenance', config.maintenance, 503);
+  }
   const route = findRoute(req.method, url.pathname);
   if (!route) throw new GameError('not_found', 'No such endpoint.', 404);
   const body = req.method === 'POST' ? await readJson(req) : {};
@@ -565,6 +569,7 @@ export async function startServer({ port = config.port, host = config.host, dbPa
     console.log(`${config.gameName} server at ${url} | pool mode: ${config.poolMode} | dev mode: ${devNote} | ${staticNote}`);
     if (seeded) console.log(`Test pool seeded with ${seeded / 1e9} fake SOL (SEED_POOL_SOL).`);
     if (config.autoPayouts) console.log(`Automatic payouts ON from ${config.poolWallet} (${config.solanaCluster}).`);
+    if (config.maintenance) console.warn(`MAINTENANCE: the game is paused ("${config.maintenance}").`);
     if (config.testWallets.size) console.warn(`TEST_WALLETS: ${config.testWallets.size} wallet(s) skip the holding check. Delete it at launch.`);
     if (config.hideMint) console.log('HIDE_MINT: the token address is hidden from players.');
   }

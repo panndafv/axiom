@@ -14,6 +14,7 @@ export const CONFIG = {
   explorerUrl: (mint) => `https://solscan.io/token/${mint}`,
   cluster: 'mainnet',
   autoPayouts: false,
+  maintenance: '', // set by the server while the game is paused
   txUrl: (sig) => `https://solscan.io/tx/${sig}${CONFIG.cluster === 'devnet' ? '?cluster=devnet' : ''}`,
 };
 
@@ -26,4 +27,5 @@ export function applyServerConfig(cfg) {
   if (Number.isFinite(cfg.earnGate)) CONFIG.earnGate = cfg.earnGate;
   if (cfg.cluster) CONFIG.cluster = cfg.cluster;
   CONFIG.autoPayouts = !!cfg.autoPayouts;
+  CONFIG.maintenance = cfg.maintenance || '';
 }

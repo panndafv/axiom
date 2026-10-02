@@ -149,6 +149,10 @@ app.call = async (method, ...args) => {
       await app.disconnect();
     }
     if (err.code === 'hold' && err.holding) app.holding = err.holding;
+    if (err.code === 'maintenance') {
+      CONFIG.maintenance = err.message;
+      app.goHome();
+    }
     throw err;
   }
 };
@@ -196,6 +200,7 @@ function startPlaying() {
 }
 
 app.playGuest = async () => {
+  if (CONFIG.maintenance) return;
   if (app.mode === 'wallet') {
     app.mode = 'guest';
     app.backend = createLocalBackend();
@@ -207,6 +212,7 @@ app.playGuest = async () => {
 };
 
 app.connectWallet = async () => {
+  if (CONFIG.maintenance) return;
   if (app.mode === 'wallet') return startPlaying();
   if (!app.serverOnline) {
     await checkServer();
@@ -287,7 +293,10 @@ const lobby = createLobbyClient({
     for (const p of msg.players) remotes.add(p);
     lobbyInfo = { lobby: msg.lobby, size: msg.size };
     showLobby();
+    hud.chat.reset(msg.chat || []);
   },
+  chat(msg) { hud.chat.add({ ...msg, mine: msg.id === myLobbyId }); },
+  chat_no(msg) { hud.chat.refused(msg.why, msg.waitMs); },
   join(msg) { remotes.add(msg.p); showLobby(); },
   leave(msg) { remotes.remove(msg.id); showLobby(); },
   u(msg) { for (const [id, ...s] of msg.p) if (id !== myLobbyId) remotes.setState(id, s); },
@@ -302,6 +311,7 @@ const lobby = createLobbyClient({
     remotes.clear();
     lobbyInfo = null;
     showLobby();
+    hud.chat.offline();
   },
 });
 
@@ -389,6 +399,12 @@ function standUp() {
   player.setMode('walk', { at: player.state.sitSpot?.standAt });
   hud.setMode('walk');
 }
+
+app.sendChat = (text) => lobby.send({ t: 'chat', text });
+app.onChatFocus = () => input.unlockPointer();
+input.on('Enter', () => {
+  if (!panels.open && !title.visible) hud.chat.focus();
+});
 
 input.on('Escape', () => {
   if (panels.open) return panels.close();

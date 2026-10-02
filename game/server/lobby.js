@@ -4,10 +4,12 @@
 //
 // Client → server: {t:'hello', token?, guest?, name?, outfit, rod, halo, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
 //                  (mode: 0 walking, 1 fishing, 2 sitting, 3 up the lighthouse)
-//                  {t:'look', name?, outfit, rod, halo}
+//                  {t:'look', name?, outfit, rod, halo}, {t:'chat', text}
 // Server → client: {t:'welcome', id, lobby, size, players:[...]}, {t:'join', p}, {t:'leave', id},
 //                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, name, outfit, rod, halo},
-//                  {t:'shout', name, sp, kg} (someone in your lobby landed something rare)
+//                  {t:'shout', name, sp, kg} (someone in your lobby landed something rare),
+//                  {t:'chat', id, name, wallet, text, at}, {t:'chat_no', why} (your line was refused)
+//                  welcome also carries `chat`: the lobby's last few lines.
 
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
@@ -15,6 +17,30 @@ import { walletForToken } from './auth.js';
 import { RODS_BY_ID, OUTFITS_BY_ID, HALOS_BY_ID, SPECIES_BY_ID, RARITIES, isLook, randomLook, cleanName } from '../shared/rules.js';
 
 const haloOf = (id) => (Object.hasOwn(HALOS_BY_ID, id) ? id : null);
+
+// Lobby chat: one line per player every 5 seconds, up to 120 characters. The last few lines are
+// kept per lobby (in memory) so people who join see the conversation.
+export const CHAT_EVERY_MS = 5_000;
+const CHAT_MAX = 120;
+const CHAT_HISTORY = 20;
+const chatLogs = new Map(); // lobby number -> recent chat messages
+
+// Tidies a line. Links and wallet/token addresses are refused: in a token's game they are
+// nearly always scams ("new CA", "claim your airdrop here").
+export function cleanChat(text) {
+  if (typeof text !== 'string') return { error: null };
+  const t = text
+    .replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, CHAT_MAX);
+  if (!t) return { error: null };
+  if (/(https?:|www\.|t\.me|discord\.gg|\b[a-z0-9-]+\.(com|net|org|io|xyz|fun|gg|app|sol|link|site|online|club|ly|tv|ru|info)\b)/i.test(t)) {
+    return { error: 'Links are not allowed in chat.' };
+  }
+  if (/[1-9A-HJ-NP-Za-km-z]{30,}/.test(t)) return { error: 'Wallet and token addresses are not allowed in chat.' };
+  return { text: t };
+}
 
 export const LOBBY_SIZE = 25;
 const TICK_MS = 125;
@@ -81,7 +107,7 @@ function join(ws, hello) {
   p.name = cleanName(hello.name) || p.tag;
   p.lobby = pickLobby();
   const lobby = lobbies.get(p.lobby);
-  send(p, { t: 'welcome', id: p.id, lobby: p.lobby, size: LOBBY_SIZE, players: [...lobby.values()].map(publicPlayer) });
+  send(p, { t: 'welcome', id: p.id, lobby: p.lobby, size: LOBBY_SIZE, players: [...lobby.values()].map(publicPlayer), chat: chatLogs.get(p.lobby) || [] });
   broadcast(lobby, { t: 'join', p: publicPlayer(p) });
   lobby.set(p.id, p);
   return p;
@@ -90,8 +116,12 @@ function join(ws, hello) {
 function leave(p) {
   const lobby = lobbies.get(p.lobby);
   if (!lobby?.delete(p.id)) return;
-  if (lobby.size === 0) lobbies.delete(p.lobby);
-  else broadcast(lobby, { t: 'leave', id: p.id });
+  if (lobby.size === 0) {
+    lobbies.delete(p.lobby);
+    chatLogs.delete(p.lobby);
+  } else {
+    broadcast(lobby, { t: 'leave', id: p.id });
+  }
 }
 
 function onMessage(p, raw) {
@@ -113,6 +143,24 @@ function onMessage(p, raw) {
     if ('halo' in msg) p.halo = haloOf(msg.halo);
     if ('name' in msg) p.name = cleanName(msg.name) || p.tag;
     broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, name: p.name, outfit: p.outfit, rod: p.rod, halo: p.halo, look: p.look }, p);
+  } else if (msg?.t === 'chat') {
+    const wait = (p.lastChatAt || 0) + CHAT_EVERY_MS - now;
+    if (wait > 0) {
+      send(p, { t: 'chat_no', why: `Slow down: you can chat again in ${Math.ceil(wait / 1000)}s.`, waitMs: wait });
+      return;
+    }
+    const c = cleanChat(msg.text);
+    if (!c.text) {
+      if (c.error) send(p, { t: 'chat_no', why: c.error });
+      return;
+    }
+    p.lastChatAt = now;
+    const line = { t: 'chat', id: p.id, name: p.name, wallet: !!p.wallet, text: c.text, at: now };
+    const log = chatLogs.get(p.lobby) || [];
+    log.push(line);
+    if (log.length > CHAT_HISTORY) log.shift();
+    chatLogs.set(p.lobby, log);
+    broadcast(lobbies.get(p.lobby), line); // the sender too, so everyone sees the same line
   }
 }
 
@@ -161,7 +209,7 @@ export function attach(server) {
     // browsers always send Origin; only accept our own page (or the configured CORS origin)
     let allowed = !origin || origin === config.corsOrigin;
     try { allowed ||= new URL(origin).host === host; } catch { /* "null" or junk origin */ }
-    if (pathname !== '/ws' || !allowed) {
+    if (pathname !== '/ws' || !allowed || config.maintenance) {
       socket.destroy();
       return;
     }

@@ -1,11 +1,9 @@
 import * as THREE from 'three';
 import { h, fmt } from './dom.js';
 import { fishIcon, rodIcon, baitIcon, haloIcon, specialRodIcon } from './icons.js';
-import { CONFIG } from '../config.js';
 import {
   GAME, RARITIES, SPECIES_BY_ID, BAITS_BY_ID, RODS_BY_ID, HALOS_BY_ID, SPECIAL_CASTS, specialCast, sellPrice,
 } from '../../shared/rules.js';
-import { shortAddress } from '../net/wallet.js';
 
 const tmp = new THREE.Vector3();
 const touch = () => document.body.classList.contains('touch');
@@ -79,25 +77,79 @@ export function createHud(app) {
   }
 
   // ------------------------------------------------------------------ deck HUD
-  const best = h('span.hud-best');
-  const unlockNum = h('span.num');
-  const unlockOf = h('span');
-  const unlockBar = h('i');
-  const sub = h('div.hud-sub', 'fish sold · sell fish at the rack to fill it');
-  const status = h('div');
   const deck = h('div.hud',
     h('div.hud-buttons',
       h('button.hud-btn', { on: { click: () => app.open('profile') } }, '👤 PROFILE (P)'),
       h('button.hud-btn.orange', { on: { click: () => app.goHome() } }, '⌂ HOME'),
     ),
-    h('div.hud-card',
-      h('div.hud-row', best),
-      h('div.hud-unlock', 'POOL UNLOCK ', unlockNum, unlockOf),
-      h('div.bar', unlockBar),
-      sub,
-      status,
-    ),
   );
+
+  // ------------------------------------------------------------------ lobby chat (top left)
+  // Enter to type, Enter to send, Esc to stop typing. The server allows one line every 5 seconds.
+  const CHAT_COOLDOWN_MS = 5_000;
+  const CHAT_KEEP = 40;
+  const chatLog = h('div.chat-log');
+  const chatInput = h('input.chat-input', { maxlength: 120, placeholder: 'Press Enter to chat', enterkeyhint: 'send' });
+  const chatBox = h('div.chat', chatLog, chatInput);
+  let chatReadyAt = 0;
+  let chatTimer = null;
+  let chatOnline = false;
+  function chatPlaceholder() {
+    const wait = chatReadyAt - Date.now();
+    chatInput.disabled = !chatOnline || wait > 0;
+    chatInput.placeholder = !chatOnline ? 'chat is offline'
+      : wait > 0 ? `you can chat again in ${Math.ceil(wait / 1000)}s`
+        : touch() ? 'tap to chat' : 'Press Enter to chat';
+    clearTimeout(chatTimer);
+    if (chatOnline && wait > 0) chatTimer = setTimeout(chatPlaceholder, Math.min(wait, 250));
+  }
+  function chatLine(m) {
+    // text only, never HTML
+    const el = h(`div.cl${m.mine ? '.mine' : ''}${m.system ? '.system' : ''}`,
+      m.name ? h(`b.nm${m.wallet ? '.wallet' : ''}`, `${m.name}: `) : null, m.text);
+    chatLog.append(el);
+    while (chatLog.childElementCount > CHAT_KEEP) chatLog.firstElementChild.remove();
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const text = chatInput.value.replace(/\s+/g, ' ').trim();
+      if (text && app.sendChat?.(text)) {
+        chatInput.value = '';
+        chatReadyAt = Date.now() + CHAT_COOLDOWN_MS;
+        chatPlaceholder();
+      }
+      chatInput.blur();
+    } else if (e.key === 'Escape') {
+      chatInput.blur();
+    }
+  });
+  chatInput.addEventListener('focus', () => app.onChatFocus?.());
+  const chat = {
+    // the lobby's recent lines when we join
+    reset(lines = []) {
+      chatLog.replaceChildren();
+      chatOnline = true;
+      for (const m of lines) chatLine(m);
+      chatPlaceholder();
+    },
+    add(m) { chatLine(m); },
+    refused(why, waitMs) {
+      chatLine({ system: true, text: why });
+      if (waitMs) chatReadyAt = Date.now() + waitMs;
+      chatPlaceholder();
+    },
+    offline() {
+      chatOnline = false;
+      chatPlaceholder();
+    },
+    focus() {
+      if (root.style.display === 'none' || chatInput.disabled) return false;
+      chatInput.focus();
+      return true;
+    },
+  };
+  chat.offline();
   const hint = h('div.bottom-hint.passive');
   const root = h('div.passive', { style: { position: 'absolute', inset: '0' } }, hint);
   deck.style.pointerEvents = 'auto';
@@ -146,47 +198,13 @@ export function createHud(app) {
     }));
   }
 
-  // The info card on the left only stays for the first few minutes of a session.
-  const CARD_MS = 5 * 60_000;
-  const card = deck.querySelector('.hud-card');
-  let cardTimer = null;
-  function startCardTimer() {
-    if (cardTimer) return;
-    card.classList.remove('gone');
-    cardTimer = setTimeout(() => card.classList.add('gone'), CARD_MS);
-  }
-
-  root.append(deck, topBar, gear, specials);
+  root.append(deck, chatBox, topBar, gear, specials);
   root.style.display = 'none';
   ui.append(root);
 
   function renderDeck() {
-    const p = app.profile;
-    if (!p) return;
+    if (!app.profile) return;
     renderTop();
-    best.textContent = `🐟 ${fmt.int(p.landed)} FISH · ✦${fmt.int(p.caught)} CAUGHT`;
-    const gate = CONFIG.earnGate;
-    const sold = p.sold || 0;
-    unlockNum.textContent = fmt.int(Math.min(sold, gate));
-    unlockOf.textContent = ` / ${fmt.int(gate)} fish sold`;
-    unlockBar.style.width = `${Math.min(100, (sold / Math.max(1, gate)) * 100)}%`;
-    status.className = '';
-    if (app.mode === 'guest') {
-      status.className = 'hud-warn';
-      status.textContent = `guest · connect a wallet on the title to earn from the pool`;
-    } else {
-      const hold = app.holding;
-      if (hold?.ok) {
-        status.className = 'hud-ok';
-        status.textContent = `${shortAddress(app.session?.wallet)} · holding ${hold.dev ? '(dev mode)' : hold.test ? '(test wallet)' : fmt.usd(hold.usd)} of $${CONFIG.tokenSymbol} ✓`;
-      } else {
-        status.className = 'hud-warn';
-        status.textContent = `${shortAddress(app.session?.wallet)} · hold $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} to cash in fish`;
-      }
-    }
-    sub.textContent = sold >= gate
-      ? 'pool unlocked · cash in rare fish at the rack or the chest'
-      : 'sell fish at the rack to unlock the pool';
   }
 
   // ------------------------------------------------------------------ world labels
@@ -367,6 +385,7 @@ export function createHud(app) {
   return {
     fishing,
     shout,
+    chat,
     setLobby(info) {
       lobbyChip.el.style.display = info ? '' : 'none';
       if (info) {
@@ -377,7 +396,6 @@ export function createHud(app) {
     render: renderDeck,
     setMode(mode) {
       root.style.display = mode === 'walk' || mode === 'fish' || mode === 'sit' ? '' : 'none';
-      if (mode === 'walk') startCardTimer();
       deck.style.display = mode === 'fish' ? 'none' : '';
       if (mode === 'walk') hint.textContent = 'click to look · WASD walk · Shift run · walk to any edge + E to fish · E interact · V view · P profile';
       if (mode === 'sit') hint.textContent = '(E) stand up';

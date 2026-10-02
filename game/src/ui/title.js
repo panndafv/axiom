@@ -20,6 +20,8 @@ export function createTitle(app) {
   const menu = h('div.menu');
   const guestBtn = h('button.btn-guest', { on: { click: () => { sfx.click(); app.playGuest(); } } }, 'play as guest');
   const note = h('div.title-note', 'wallet = your progress is saved · guest = saved on this device only');
+  const pausedMsg = h('p');
+  const paused = h('div.paused-card', h('div.big', '⏸ PAUSED'), pausedMsg, h('p.small', 'Your fish, gold and SOL are safe.'));
   const logo = h('h1.logo');
   const addr = h('span.addr');
   const copy = h('button.copy', { on: { click: copyMint } }, 'COPY');
@@ -29,7 +31,7 @@ export function createTitle(app) {
   const bar = h('div.contract-bar', sym, addr, copy, explorer, buy);
   const muteBtn = h('button.mute-btn', { title: 'Mute (M)', on: { click: () => app.setMuted(!sfx.muted) } });
   const root = h('div.title-screen',
-    logo, main, status, menu, guestBtn, note,
+    logo, paused, main, status, menu, guestBtn, note,
     h('div.key-hints.passive', '↑↓ select · Enter open · Esc close · M mute'),
     bar,
   );
@@ -53,6 +55,11 @@ export function createTitle(app) {
     buy.href = CONFIG.buyUrl || '#';
     buy.style.display = CONFIG.buyUrl ? '' : 'none';
     muteBtn.textContent = sfx.muted ? '🔇' : '🔊';
+    // paused by the server: no way into the game, just the message
+    const isPaused = !!CONFIG.maintenance;
+    paused.style.display = isPaused ? '' : 'none';
+    pausedMsg.textContent = CONFIG.maintenance;
+    for (const el of [main, guestBtn, note]) el.style.display = isPaused ? 'none' : '';
 
     const found = p ? Object.keys(p.log || {}).length : 0;
     items = [
