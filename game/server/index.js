@@ -99,6 +99,10 @@ const routes = {
     autoPayouts: config.autoPayouts,
     cluster: config.solanaCluster,
     dev: config.dev,
+    // For checking a deploy from the browser: which commit is running, and how many wallets
+    // TEST_WALLETS gave it (never which ones).
+    version: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7),
+    testWallets: config.testWallets.size,
   }),
 
   // --- sign-in

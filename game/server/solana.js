@@ -114,7 +114,9 @@ async function checkHolding(wallet) {
       minUsd,
       checkedAt,
       error: bal.status === 'rejected'
-        ? 'Could not read your token balance right now. Try again in a moment.'
+        ? /could not find mint/i.test(String(bal.reason?.message))
+          ? `$${config.tokenSymbol} is not on-chain yet, so balances can't be checked until it launches.`
+          : 'Could not read your token balance right now. Try again in a moment.'
         : `Could not get a price for $${config.tokenSymbol} right now. Try again in a moment.`,
     };
   }

@@ -71,6 +71,8 @@ test('HIDE_MINT keeps the token address off the title screen', async () => {
   const cfg = (await api('GET', '/api/config')).body;
   assert.equal(cfg.tokenMint, '');
   assert.equal(cfg.dev, false);
+  assert.equal(cfg.testWallets, 2, 'the junk entry is skipped');
+  assert.equal(typeof cfg.version, 'string');
 });
 
 test('a test wallet passes the holding check before the token exists; anyone else does not', async () => {
@@ -80,5 +82,5 @@ test('a test wallet passes the holding check before the token exists; anyone els
 
   const other = await signIn(nacl.sign.keyPair());
   assert.equal(other.holding.ok, false);
-  assert.match(other.holding.error, /token balance/);
+  assert.match(other.holding.error, /not on-chain yet/);
 });
