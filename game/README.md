@@ -19,6 +19,13 @@ game/
 
 Needs Node 22.13+ (uses the built-in `node:sqlite`).
 
+**Windows, no typing:** double-click `start.bat` in this folder. It installs everything, writes a
+`.env` with local test settings (`ADMIN_KEY=test`, `EARN_GATE=0`), builds the game, starts the
+server and opens http://localhost:8787. Keep its window open while you play. Double-click
+`fund-pool.bat` to put 5 test SOL in the reward pool.
+
+**Any system, by hand:**
+
 ```bash
 cd game
 npm install
@@ -27,7 +34,8 @@ npm run build             # builds the client into dist/
 npm start                 # serves the game + API on http://localhost:8787
 ```
 
-While developing, run `npm run dev:server` and `npm run dev` side by side. Vite serves the client
+`npm run fund -- 5` adds 5 test SOL to the pool of the server running on this machine (needs
+`ADMIN_KEY` in `.env`). While developing, run `npm run dev:server` and `npm run dev` side by side. Vite serves the client
 with hot reload on :5173 and proxies `/api` to the server. `npm test` runs the test suites.
 
 With `TOKEN_MINT` empty the server runs in **dev mode**: every wallet passes the holding check.
