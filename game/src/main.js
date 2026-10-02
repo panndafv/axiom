@@ -178,10 +178,12 @@ function startPlaying() {
   player.setMode('walk', { reset: true });
   hud.setMode('walk');
   hud.render();
-  if (!localStorage.getItem('pp.seenHowTo')) {
-    try { localStorage.setItem('pp.seenHowTo', '1'); } catch { /* ignore */ }
-    panels.howTo();
-  }
+  let seen = false;
+  try {
+    seen = !!localStorage.getItem('pp.seenHowTo');
+    localStorage.setItem('pp.seenHowTo', '1');
+  } catch { /* storage blocked: just show it */ }
+  if (!seen) panels.howTo();
 }
 
 app.playGuest = async () => {
