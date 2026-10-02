@@ -136,7 +136,7 @@ function saveProfile(wallet, p, now) {
     INSERT INTO profiles (wallet, data, best, landed, updated) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (wallet) DO UPDATE SET
       data = excluded.data, best = excluded.best, landed = excluded.landed, updated = excluded.updated
-  `).run(wallet, JSON.stringify(p), p.best, p.landed, now);
+  `).run(wallet, JSON.stringify(p), p.caught || 0, p.landed, now); // column `best` holds the leaderboard score
 }
 
 // Load (or create) a player's profile, tidy it, let fn change it and save it, all in one

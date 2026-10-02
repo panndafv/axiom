@@ -1,67 +1,107 @@
 import { svg } from './dom.js';
 
-// Side-view fish drawn as SVG from the species shape preset and colours.
+// Side-view fish as a little pixel-art sprite, rasterised from the species' shape and colours
+// onto a coarse grid with a dark outline, like an old handheld game.
 
-const BODY = {
-  perch:  { rx: 34, ry: 16 },
-  small:  { rx: 26, ry: 14 },
-  long:   { rx: 40, ry: 10 },
-  eel:    { rx: 44, ry: 6 },
-  round:  { rx: 24, ry: 21 },
-  tall:   { rx: 26, ry: 22 },
-  angler: { rx: 30, ry: 19 },
-  tuna:   { rx: 38, ry: 15 },
-  marlin: { rx: 38, ry: 12 },
-  shark:  { rx: 42, ry: 13 },
+const GRID_W = 26;
+const GRID_H = 16;
+const SHAPES = {
+  perch:  { rx: 7.2, ry: 3.8, tail: 4,   dorsal: 2 },
+  small:  { rx: 5.6, ry: 3.2, tail: 3,   dorsal: 1.2 },
+  long:   { rx: 8.6, ry: 2.6, tail: 3.5, dorsal: 1.2, forked: true },
+  eel:    { rx: 9.8, ry: 1.7, tail: 2,   dorsal: 0 },
+  round:  { rx: 5.4, ry: 4.6, tail: 3,   dorsal: 0, spikes: true },
+  tall:   { rx: 5.8, ry: 4.9, tail: 3.5, dorsal: 2.4 },
+  angler: { rx: 6.8, ry: 4.4, tail: 3,   dorsal: 0, lure: true },
+  tuna:   { rx: 8,   ry: 3.6, tail: 4.5, dorsal: 2, forked: true },
+  marlin: { rx: 7.6, ry: 2.9, tail: 4.5, dorsal: 3.4, forked: true, bill: 4 },
+  shark:  { rx: 9,   ry: 3.2, tail: 4.5, dorsal: 3, forked: true },
 };
+const OUTLINE = '#1d140f';
+const DIM = '#3a2d25';
+const cache = new Map();
 
-let uid = 0;
-export function fishIcon(species, size = 56) {
-  const b = BODY[species.shape] || BODY.perch;
+function rasterize(species) {
+  const s = SHAPES[species.shape] || SHAPES.perch;
   const [top, belly, accent] = species.colors;
-  const id = `fg${uid++}`;
-  const cx = 52, cy = 30;
-  const tailX = cx - b.rx + 4;
-  const forked = ['tuna', 'marlin', 'shark', 'long'].includes(species.shape);
-  const tail = forked
-    ? `M${tailX} ${cy} L${tailX - 18} ${cy - 15} L${tailX - 9} ${cy} L${tailX - 18} ${cy + 15} Z`
-    : `M${tailX} ${cy} L${tailX - 16} ${cy - 12} L${tailX - 13} ${cy} L${tailX - 16} ${cy + 12} Z`;
-  const dorsalH = species.shape === 'marlin' ? 16 : species.shape === 'tall' ? 14 : species.shape === 'shark' ? 13 : 8;
-  const dorsal = `M${cx - 12} ${cy - b.ry + 2} L${cx - 2} ${cy - b.ry - dorsalH} L${cx + 8} ${cy - b.ry + 3} Z`;
-  let extra = '';
-  if (species.shape === 'marlin') extra += `<path d="M${cx + b.rx - 2} ${cy - 2} L${cx + b.rx + 18} ${cy - 1} L${cx + b.rx - 2} ${cy + 2} Z" fill="${top}"/>`;
-  if (species.shape === 'angler') extra += `<path d="M${cx + 10} ${cy - b.ry + 2} Q${cx + 22} ${cy - b.ry - 14} ${cx + 30} ${cy - b.ry - 6}" stroke="${top}" stroke-width="1.5" fill="none"/><circle cx="${cx + 30}" cy="${cy - b.ry - 5}" r="3.5" fill="${accent}"/>`;
-  let pattern = '';
-  if (species.pattern === 'stripes') {
-    for (let i = -2; i <= 2; i++) pattern += `<rect x="${cx + i * 9 - 2}" y="${cy - b.ry}" width="4" height="${b.ry * 1.3}" fill="${accent}" opacity="0.55"/>`;
-  } else if (species.pattern === 'spots') {
-    for (let i = 0; i < 6; i++) pattern += `<circle cx="${cx - b.rx * 0.5 + i * b.rx * 0.22}" cy="${cy - b.ry * 0.35 + (i % 2) * b.ry * 0.4}" r="2.3" fill="${accent}" opacity="0.7"/>`;
-  }
-  if (species.shape === 'round') {
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const x1 = cx + Math.cos(a) * b.rx, y1 = cy + Math.sin(a) * b.ry;
-      const x2 = cx + Math.cos(a) * (b.rx + 5), y2 = cy + Math.sin(a) * (b.ry + 5);
-      extra += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${accent}" stroke-width="2"/>`;
+  const cx = 1 + s.tail + s.rx;
+  const cy = GRID_H / 2 + 0.6;
+  const grid = Array.from({ length: GRID_H }, () => new Array(GRID_W).fill(null));
+  const set = (x, y, c) => { if (x >= 0 && y >= 0 && x < GRID_W && y < GRID_H) grid[y][x] = c; };
+  for (let y = 0; y < GRID_H; y++) {
+    for (let x = 0; x < GRID_W; x++) {
+      const px = x + 0.5, py = y + 0.5;
+      const dx = (px - cx) / s.rx, dy = (py - cy) / s.ry;
+      if (dx * dx + dy * dy <= 1) {
+        let c = py < cy + s.ry * 0.15 ? top : belly;
+        if (species.pattern === 'stripes' && py < cy + s.ry * 0.4 && Math.abs(dx) < 0.75 && Math.floor(px - cx + 20) % 3 === 0) c = accent;
+        if (species.pattern === 'spots' && Math.abs(dx) < 0.8 && ((x * 7 + y * 13) % 9 === 0)) c = accent;
+        grid[y][x] = c;
+        continue;
+      }
+      // tail, fanning out to the left of the body
+      const t = (cx - s.rx + 1 - px) / (s.tail + 1);
+      if (t >= 0 && t <= 1) {
+        const half = 0.6 + t * s.ry * 0.95;
+        const notch = s.forked && t > 0.5 && Math.abs(py - cy) < (t - 0.5) * s.ry * 1.5;
+        if (Math.abs(py - cy) <= half && !notch) { grid[y][x] = accent; continue; }
+      }
+      // dorsal fin on the back
+      if (s.dorsal) {
+        const mid = cx - s.rx * 0.15;
+        const reach = s.rx * 0.4;
+        const k = 1 - Math.abs(px - mid) / reach;
+        if (k > 0 && py >= cy - s.ry - s.dorsal * k && py < cy - s.ry * 0.5) { grid[y][x] = accent; continue; }
+      }
+      // pelvic fin
+      if (Math.abs(px - (cx + 0.5)) < 1.2 && py > cy + s.ry * 0.8 && py < cy + s.ry + 1.3) grid[y][x] = accent;
     }
   }
-  return svg(`
-    <svg width="${size}" height="${Math.round(size * 0.6)}" viewBox="0 0 110 62" aria-hidden="true">
-      <defs>
-        <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${belly}"/>
-        </linearGradient>
-        <clipPath id="${id}c"><ellipse cx="${cx}" cy="${cy}" rx="${b.rx}" ry="${b.ry}"/></clipPath>
-      </defs>
-      <path d="${tail}" fill="${accent}"/>
-      <path d="${dorsal}" fill="${accent}"/>
-      <ellipse cx="${cx}" cy="${cy}" rx="${b.rx}" ry="${b.ry}" fill="url(#${id})"/>
-      <g clip-path="url(#${id}c)">${pattern}</g>
-      <path d="M${cx + 4} ${cy + b.ry * 0.6} L${cx + 10} ${cy + b.ry + 6} L${cx + 14} ${cy + b.ry * 0.5} Z" fill="${accent}" opacity="0.9"/>
-      ${extra}
-      <circle cx="${cx + b.rx * 0.62}" cy="${cy - b.ry * 0.15}" r="${Math.max(2.4, b.ry * 0.18)}" fill="#141414"/>
-      <circle cx="${cx + b.rx * 0.62 + 0.8}" cy="${cy - b.ry * 0.15 - 0.8}" r="0.9" fill="#fff"/>
-    </svg>`);
+  if (s.bill) for (let x = Math.floor(cx + s.rx - 0.5); x < cx + s.rx + s.bill; x++) set(x, Math.floor(cy - 0.5), top);
+  if (s.lure) {
+    const lx = Math.floor(cx + s.rx * 0.35), ly = Math.floor(cy - s.ry - 1);
+    set(lx, ly, top); set(lx + 1, ly - 1, top); set(lx + 2, ly - 1, top); set(lx + 3, ly, accent);
+  }
+  if (s.spikes) {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.3;
+      set(Math.floor(cx + Math.cos(a) * (s.rx + 0.9)), Math.floor(cy + Math.sin(a) * (s.ry + 0.9)), accent);
+    }
+  }
+  set(Math.floor(cx + s.rx * 0.55), Math.floor(cy - s.ry * 0.3), 'eye');
+  // dark outline around everything
+  const filled = (x, y) => x >= 0 && y >= 0 && x < GRID_W && y < GRID_H && grid[y][x] && grid[y][x] !== OUTLINE;
+  for (let y = 0; y < GRID_H; y++) {
+    for (let x = 0; x < GRID_W; x++) {
+      if (!grid[y][x] && (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1))) grid[y][x] = OUTLINE;
+    }
+  }
+  return grid;
+}
+
+function spriteMarkup(grid, silhouette) {
+  let rects = '';
+  for (let y = 0; y < GRID_H; y++) {
+    let x = 0;
+    while (x < GRID_W) {
+      const raw = grid[y][x];
+      if (!raw) { x++; continue; }
+      const c = silhouette ? (raw === OUTLINE ? 'transparent' : DIM) : raw === 'eye' ? '#111' : raw;
+      let run = 1;
+      while (x + run < GRID_W && grid[y][x + run] === raw) run++;
+      if (c !== 'transparent') rects += `<rect x="${x}" y="${y}" width="${run}" height="1" fill="${c}"/>`;
+      x += run;
+    }
+  }
+  return rects;
+}
+
+// silhouette: the dim shape shown in the catch log for fish you haven't caught yet
+export function fishIcon(species, size = 56, { silhouette = false } = {}) {
+  const key = `${species.id}:${silhouette ? 1 : 0}`;
+  if (!cache.has(key)) cache.set(key, spriteMarkup(rasterize(species), silhouette));
+  const h = Math.round((size * GRID_H) / GRID_W);
+  return svg(`<svg width="${size}" height="${h}" viewBox="0 0 ${GRID_W} ${GRID_H}" shape-rendering="crispEdges" aria-hidden="true">${cache.get(key)}</svg>`);
 }
 
 // Diagonal rod drawing for shop / rack cards. Glowing rods get a halo and sparks.

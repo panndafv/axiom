@@ -84,7 +84,7 @@ export const config = {
   solanaRpcUrl: str('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com'),
   minHoldUsd: num('MIN_HOLD_USD', 50),
   earnGate: num('EARN_GATE', 1500),
-  poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.05),
+  poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
   poolWallet,
   poolMode: poolWallet ? 'wallet' : 'ledger',
   poolReserveLamports: Math.round(num('POOL_RESERVE_SOL', 0.05) * LAMPORTS_PER_SOL),

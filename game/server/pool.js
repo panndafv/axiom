@@ -12,7 +12,7 @@ import { config } from './config.js';
 import { stmt, tx } from './db.js';
 import { solBalance } from './solana.js';
 import { GameError } from '../shared/engine.js';
-import { RARITIES, RARITY_IDS, poolPayout } from '../shared/rules.js';
+import { RARITIES, RARITY_IDS, SPECIES, poolPayout, speciesPayout } from '../shared/rules.js';
 
 let onchainLamports = 0; // last known balance of POOL_WALLET
 
@@ -65,6 +65,14 @@ export function summary() {
       color: RARITIES[id].color,
       poolPct: RARITIES[id].poolPct,
       lamportsPerFish: poolPayout(id, avail),
+    })),
+    // fish that pay their own share instead of their rarity's (the Ghost Whale)
+    specials: SPECIES.filter((s) => s.poolPct !== undefined).map((s) => ({
+      id: s.id,
+      name: s.name,
+      rarity: s.rarity,
+      poolPct: s.poolPct,
+      lamportsPerFish: speciesPayout(s.id, avail),
     })),
   };
 }

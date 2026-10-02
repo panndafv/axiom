@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { glowTexture } from './textures.js';
+import { paintedGeometry, paintedMaterial } from './merge.js';
 
 // Low-poly props built from primitives. Every builder returns a THREE.Group positioned at the
 // origin, standing on y = 0. Meshes marked userData.static get merged later (see batch.js).
@@ -409,18 +410,18 @@ export function rodRack() {
   return g;
 }
 
+// One painted mesh for shaft, grip and reel, plus a small glowing tip.
 export function rodMesh(color = '#9a6a3c', tip = '#ff6a3d', length = 1.9) {
   const g = new THREE.Group();
-  const shaft = mesh(new THREE.CylinderGeometry(0.018, 0.04, length, 6), mat(color, { flat: false, rough: 0.6 }), { isStatic: false });
-  shaft.position.y = length / 2;
-  const grip = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.38, 6), mat('#3b2a22'), { isStatic: false });
-  grip.position.y = 0.19;
-  const reel = mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 8), mat('#c9ccd2', { metal: 0.5, rough: 0.4 }), { isStatic: false });
-  reel.rotation.z = Math.PI / 2;
-  reel.position.set(0.07, 0.45, 0);
+  const body = new THREE.Mesh(paintedGeometry([
+    { geo: new THREE.CylinderGeometry(0.018, 0.04, length, 6), color, pos: [0, length / 2, 0] },
+    { geo: new THREE.CylinderGeometry(0.05, 0.05, 0.38, 6), color: '#3b2a22', pos: [0, 0.19, 0] },
+    { geo: new THREE.CylinderGeometry(0.08, 0.08, 0.06, 8), color: '#c9ccd2', pos: [0.07, 0.45, 0], rot: [0, 0, Math.PI / 2] },
+  ]), paintedMaterial);
+  body.castShadow = true;
   const tipBall = mesh(new THREE.SphereGeometry(0.035, 6, 4), mat(tip, { emissive: tip, emissiveIntensity: 0.4 }), { isStatic: false });
   tipBall.position.y = length;
-  g.add(shaft, grip, reel, tipBall);
+  g.add(body, tipBall);
   g.userData.tip = new THREE.Vector3(0, length, 0);
   return g;
 }

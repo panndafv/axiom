@@ -166,60 +166,47 @@ test('/api/me needs a session', async () => {
   assert.equal(h.body.holding.ok, true);
 });
 
-test('run: start, cast, a too-fast land is refused, cancel, end', async () => {
+test('fishing: cast, a too-fast land is refused, cancel keeps the line busy', async () => {
   const { token } = player;
-  const start = await api('POST', '/api/run/start', { token });
-  assert.equal(start.status, 200);
-  const runId = start.body.run.id;
-  assert.ok(runId);
-  assert.equal(start.body.profile.run.id, runId);
-
-  const cast = await api('POST', '/api/run/cast', { token, body: { runId } });
+  const cast = await api('POST', '/api/fish/cast', { token, body: {} });
   assert.equal(cast.status, 200);
   assert.ok(cast.body.castId);
   assert.ok(cast.body.biteInMs > 0);
   assert.equal(typeof cast.body.fight.difficulty, 'number');
-  assert.equal(cast.body.profile.run.cast.id, cast.body.castId);
-  assert.equal(cast.body.profile.run.cast.sp, undefined);
+  assert.equal(cast.body.profile.cast.id, cast.body.castId);
+  assert.equal(cast.body.profile.cast.sp, undefined);
   assert.equal(cast.body.sp, undefined, 'the species stays secret until landed');
 
-  const busy = await api('POST', '/api/run/cast', { token, body: { runId } });
+  const busy = await api('POST', '/api/fish/cast', { token, body: {} });
   assert.equal(busy.body.error, 'busy');
 
-  const land = await api('POST', '/api/run/land', { token, body: { runId, castId: cast.body.castId } });
+  const land = await api('POST', '/api/fish/land', { token, body: { castId: cast.body.castId } });
   assert.equal(land.status, 400);
   assert.equal(land.body.error, 'too_fast');
 
-  const lose = await api('POST', '/api/run/lose', { token, body: { runId, castId: cast.body.castId, reason: 'cancel' } });
+  const lose = await api('POST', '/api/fish/lose', { token, body: { castId: cast.body.castId, reason: 'cancel' } });
   assert.equal(lose.status, 200);
   assert.equal(lose.body.reason, 'cancel');
-  assert.equal(lose.body.profile.run.cast, null);
-  assert.ok(lose.body.profile.run.readyInMs > 0, "a cancelled cast blocks the line until it could have been landed");
+  assert.equal(lose.body.profile.cast, null);
+  assert.ok(lose.body.profile.readyInMs > 0, 'a cancelled cast blocks the line until it could have been landed');
 
-  const badReason = await api('POST', '/api/run/lose', { token, body: { runId, castId: 'x', reason: 'nope' } });
+  const tooSoon = await api('POST', '/api/fish/cast', { token, body: {} });
+  assert.equal(tooSoon.body.error, 'too_soon');
+
+  const badReason = await api('POST', '/api/fish/lose', { token, body: { castId: 'x', reason: 'nope' } });
   assert.equal(badReason.status, 400);
 
-  const bank = await api('POST', '/api/run/bank', { token, body: { runId } });
-  assert.equal(bank.status, 400);
-  assert.equal(bank.body.error, 'empty');
-
-  const end = await api('POST', '/api/run/end', { token, body: { runId } });
-  assert.equal(end.status, 200);
-  assert.equal(end.body.results.score, 0);
-  assert.equal(end.body.profile.run, null);
-  assert.equal(end.body.profile.runs, 1);
-
-  const stale = await api('POST', '/api/run/cast', { token, body: { runId } });
-  assert.equal(stale.body.error, 'no_run');
+  const gone = await api('POST', '/api/run/start', { token, body: {} });
+  assert.equal(gone.status, 404, 'the lantern run routes are gone');
 });
 
 test('bad input is rejected cleanly', async () => {
   const { token } = player;
-  const badJson = await api('POST', '/api/run/cast', { token, body: '{"runId": ' });
+  const badJson = await api('POST', '/api/fish/land', { token, body: '{"castId": ' });
   assert.equal(badJson.status, 400);
   assert.equal(badJson.body.error, 'bad_json');
 
-  const missing = await api('POST', '/api/run/cast', { token, body: {} });
+  const missing = await api('POST', '/api/fish/land', { token, body: {} });
   assert.equal(missing.status, 400);
   assert.equal(missing.body.error, 'bad_request');
 
@@ -355,18 +342,18 @@ test('leaderboard shows short names, and your rank when signed in', async () => 
   const before = await api('GET', '/api/leaderboard');
   assert.deepEqual(before.body, { top: [] });
 
-  withProfile(wallet, (p) => { p.best = 1_234; });
+  withProfile(wallet, (p) => { p.caught = 1_234; });
   const other = await signIn();
-  withProfile(other.wallet, (p) => { p.best = 5_000; });
+  withProfile(other.wallet, (p) => { p.caught = 5_000; });
 
   const anon = await api('GET', '/api/leaderboard');
   assert.equal(anon.body.top.length, 2);
-  assert.deepEqual(anon.body.top[0], { name: `${other.wallet.slice(0, 4)}…${other.wallet.slice(-4)}`, best: 5_000, landed: 0 });
+  assert.deepEqual(anon.body.top[0], { name: `${other.wallet.slice(0, 4)}…${other.wallet.slice(-4)}`, caught: 5_000, landed: 0 });
   assert.equal(anon.body.me, undefined);
 
   const mine = await api('GET', '/api/leaderboard', { token });
   assert.equal(mine.body.me.rank, 2);
-  assert.equal(mine.body.me.best, 1_234);
+  assert.equal(mine.body.me.caught, 1_234);
 });
 
 test('logout ends the session', async () => {

@@ -1,0 +1,185 @@
+// Multiplayer lobbies over WebSocket (/ws). Each lobby holds up to LOBBY_SIZE players who see each
+// other walk and fish. Positions are cosmetic: everything that matters (fish, gold, the pool) still
+// goes through the HTTP API, so nothing here needs to be trusted.
+//
+// Client → server: {t:'hello', token?, guest?, outfit, rod, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
+//                  {t:'look', outfit, rod}
+// Server → client: {t:'welcome', id, lobby, size, players:[...]}, {t:'join', p}, {t:'leave', id},
+//                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, outfit, rod},
+//                  {t:'shout', name, sp, kg} (someone in your lobby landed something rare)
+
+import { WebSocketServer } from 'ws';
+import { config } from './config.js';
+import { walletForToken } from './auth.js';
+import { RODS_BY_ID, OUTFITS_BY_ID, SPECIES_BY_ID, RARITIES } from '../shared/rules.js';
+
+export const LOBBY_SIZE = 50;
+const TICK_MS = 125;
+const HELLO_TIMEOUT_MS = 5_000;
+const MAX_MSGS_PER_SEC = 20; // a client sends ~8 a second
+const SHOUT_FROM = RARITIES.epic.order;
+
+const lobbies = new Map(); // lobby number -> Map(playerId -> player)
+let nextId = 1;
+
+const short = (w) => `${w.slice(0, 4)}…${w.slice(-4)}`;
+const finite = (n, lim) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= lim;
+
+function cleanState(s) {
+  if (!Array.isArray(s) || s.length < 5 || s.length > 7) return null;
+  const [x, z, f, m, sp, bx, bz] = s;
+  if (!finite(x, 500) || !finite(z, 500) || !finite(f, 20) || ![0, 1, 2].includes(m) || !finite(sp, 1)) return null;
+  const out = [round(x), round(z), round(f), m, round(sp)];
+  if (finite(bx, 500) && finite(bz, 500)) out.push(round(bx), round(bz));
+  return out;
+}
+const round = (n) => Math.round(n * 100) / 100;
+
+function publicPlayer(p) {
+  return { id: p.id, name: p.name, wallet: !!p.wallet, outfit: p.outfit, rod: p.rod, s: p.s };
+}
+
+function send(p, msg) {
+  if (p.ws.readyState === 1) p.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+}
+
+function broadcast(lobby, msg, except = null) {
+  const data = JSON.stringify(msg);
+  for (const p of lobby.values()) if (p !== except) send(p, data);
+}
+
+// The lowest-numbered lobby with room, so players fill lobbies before new ones open.
+function pickLobby() {
+  for (let n = 1; ; n++) {
+    const l = lobbies.get(n);
+    if (!l) { lobbies.set(n, new Map()); return n; }
+    if (l.size < LOBBY_SIZE) return n;
+  }
+}
+
+function join(ws, hello) {
+  const wallet = walletForToken(hello.token);
+  const guestTag = typeof hello.guest === 'string' ? hello.guest.replace(/[^0-9a-f]/gi, '').slice(0, 4) : '';
+  const p = {
+    id: nextId++,
+    ws,
+    wallet,
+    name: wallet ? short(wallet) : `guest-${guestTag || Math.floor(Math.random() * 9000 + 1000)}`,
+    outfit: Object.hasOwn(OUTFITS_BY_ID, hello.outfit) ? hello.outfit : 'deckhand',
+    rod: Object.hasOwn(RODS_BY_ID, hello.rod) ? hello.rod : 'driftwood',
+    s: cleanState(hello.s) || [0, 3.5, Math.PI, 0, 0],
+    dirty: false,
+    msgs: 0,
+    windowStart: Date.now(),
+  };
+  p.lobby = pickLobby();
+  const lobby = lobbies.get(p.lobby);
+  send(p, { t: 'welcome', id: p.id, lobby: p.lobby, size: LOBBY_SIZE, players: [...lobby.values()].map(publicPlayer) });
+  broadcast(lobby, { t: 'join', p: publicPlayer(p) });
+  lobby.set(p.id, p);
+  return p;
+}
+
+function leave(p) {
+  const lobby = lobbies.get(p.lobby);
+  if (!lobby?.delete(p.id)) return;
+  if (lobby.size === 0) lobbies.delete(p.lobby);
+  else broadcast(lobby, { t: 'leave', id: p.id });
+}
+
+function onMessage(p, raw) {
+  const now = Date.now();
+  if (now - p.windowStart > 1000) { p.windowStart = now; p.msgs = 0; }
+  if (++p.msgs > MAX_MSGS_PER_SEC) {
+    if (p.msgs > MAX_MSGS_PER_SEC * 3) p.ws.close(4008, 'too many messages');
+    return;
+  }
+  let msg;
+  try { msg = JSON.parse(raw); } catch { return; }
+  if (msg?.t === 's') {
+    const s = cleanState(msg.s);
+    if (s) { p.s = s; p.dirty = true; }
+  } else if (msg?.t === 'look') {
+    if (Object.hasOwn(OUTFITS_BY_ID, msg.outfit)) p.outfit = msg.outfit;
+    if (Object.hasOwn(RODS_BY_ID, msg.rod)) p.rod = msg.rod;
+    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, outfit: p.outfit, rod: p.rod }, p);
+  }
+}
+
+// Sends every lobby the players that moved since the last tick, in one message.
+function tick() {
+  for (const lobby of lobbies.values()) {
+    const moved = [];
+    for (const p of lobby.values()) {
+      if (p.dirty) { moved.push([p.id, ...p.s]); p.dirty = false; }
+    }
+    if (moved.length) broadcast(lobby, { t: 'u', p: moved });
+  }
+}
+
+// Called by the API when a wallet player lands a fish: rare ones are announced to their lobby.
+export function announceCatch(wallet, fish) {
+  const sp = SPECIES_BY_ID[fish?.sp];
+  if (!sp || RARITIES[sp.rarity].order < SHOUT_FROM) return;
+  for (const lobby of lobbies.values()) {
+    for (const p of lobby.values()) {
+      if (p.wallet === wallet) broadcast(lobby, { t: 'shout', name: p.name, sp: sp.id, kg: fish.kg }, p);
+    }
+  }
+}
+
+export function stats() {
+  return { lobbies: lobbies.size, players: [...lobbies.values()].reduce((n, l) => n + l.size, 0) };
+}
+
+export function attach(server) {
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 });
+
+  server.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url, 'http://localhost');
+    const origin = req.headers.origin;
+    const host = req.headers.host;
+    // browsers always send Origin; only accept our own page (or the configured CORS origin)
+    let allowed = !origin || origin === config.corsOrigin;
+    try { allowed ||= new URL(origin).host === host; } catch { /* "null" or junk origin */ }
+    if (pathname !== '/ws' || !allowed) {
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      let player = null;
+      ws.isAlive = true;
+      ws.on('pong', () => { ws.isAlive = true; });
+      const helloTimer = setTimeout(() => { if (!player) ws.close(4001, 'say hello'); }, HELLO_TIMEOUT_MS);
+      ws.on('message', (raw) => {
+        if (player) return onMessage(player, raw);
+        let hello;
+        try { hello = JSON.parse(raw); } catch { return ws.close(4002, 'bad hello'); }
+        if (hello?.t !== 'hello') return ws.close(4002, 'bad hello');
+        clearTimeout(helloTimer);
+        player = join(ws, hello);
+      });
+      ws.on('close', () => {
+        clearTimeout(helloTimer);
+        if (player) leave(player);
+      });
+      ws.on('error', () => {});
+    });
+  });
+
+  const ticker = setInterval(tick, TICK_MS);
+  // drop sockets that stopped answering (closed laptop lids, lost wifi)
+  const pinger = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!ws.isAlive) { ws.terminate(); continue; }
+      ws.isAlive = false;
+      ws.ping();
+    }
+  }, 25_000);
+  server.on('close', () => {
+    clearInterval(ticker);
+    clearInterval(pinger);
+    for (const ws of wss.clients) ws.terminate();
+    lobbies.clear();
+  });
+}

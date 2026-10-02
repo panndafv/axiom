@@ -1,7 +1,7 @@
 # Pier Pressure
 
-A low-poly 3D fishing game for a memecoin. Walk the pier, cast from any edge, reel fish in against
-a 90-second lantern, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
+A low-poly 3D multiplayer fishing game for a memecoin. Up to 50 players share a pier. Cast from any
+edge, reel fish in, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
 for a share of a SOL reward pool** funded by the token's creator fees. Only wallets holding at
 least **$50 of the token** can cash in.
 
@@ -40,23 +40,19 @@ with hot reload on :5173 and proxies `/api` to the server. `npm test` runs the t
 
 With `TOKEN_MINT` empty the server runs in **dev mode**: every wallet passes the holding check.
 
-## How a run works
+## How fishing works
 
-Walk to any edge of the pier and press E when it says FISH HERE. Then:
+Walk to any edge of the pier and press E when it says FISH HERE. Fish as long as you like and press
+E again to stop.
 
-1. **Cast** with Space or a click. The bobber lands wherever it lands.
+1. **Cast** with Space or a click. The bobber lands wherever it lands, always in open water.
 2. **Wait.** The bite comes on its own.
 3. **Reel.** Hold Space or the mouse. Progress and tension both rise; letting go bleeds tension but
-   the fish takes line back. When the fish **surges**, let go or the line snaps.
-4. **Bank or push.** Every landed fish adds +0.10 to the multiplier. **B** banks the stringer ×
-   multiplier into the run score; the multiplier bonus is paid as gold. A **snap loses the whole
-   unbanked stringer**.
+   the fish takes line back. When the fish **surges**, let go or the line snaps and the fish is gone.
 
-When the lantern's 90 seconds run out, the run is scored and the stringer is banked automatically.
-Banked fish go in your **backpack**, which holds 15. Sell them for gold at the fish rack, or cash
-rare ones in at the reward pool. If the backpack is full when you bank, the cheapest fish are sold
-to make room (rarer fish are always kept first). The bar at the top of the screen shows your luck,
-gold and backpack.
+Every fish you land goes straight into your **backpack**, which holds 15. Sell them for gold at the
+fish rack, or cash rare ones in at the reward pool. With a full backpack you can't cast until you
+sell some. The bar at the top of the screen shows your luck, gold, backpack and lobby.
 
 On the deck: WASD to walk, the mouse or arrow keys to look, Shift to run, E to interact, V to change
 the view, P for your profile, M to mute. On phones there's a joystick, drag-to-look and on-screen
@@ -73,7 +69,11 @@ All of it lives in `shared/rules.js`.
 | Rare      | 9.5%      | ~✦70      | 0.04%                       |
 | Epic      | 3.6%      | ~✦200     | 0.25%                       |
 | Legendary | 0.8%      | ~✦600     | 1%                          |
-| Mythic    | 0.1%      | ~✦2000    | 3%                          |
+| Mythic    | 0.1%      | ~✦2000    | 3% (Moon Marlin)            |
+
+The **Ghost Whale** is a special mythic: it bites a quarter as often as the Moon Marlin (0.025% of
+all bites at zero luck, the rarest fish in the game) and cashes in for **6.5%** of the pool.
+Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
 
 - **Gold** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Gold has
   no value outside the game.
@@ -86,7 +86,8 @@ All of it lives in `shared/rules.js`.
   - it must hold at least `MIN_HOLD_USD` of the token, checked live on-chain with the price from
     DexScreener (Jupiter as fallback);
   - it must have earned `EARN_GATE` lifetime gold (anti-bot: you have to actually play first);
-  - it can take at most `POOL_DAILY_CAP_PCT` of the pool per 24 hours.
+  - it can take at most `POOL_DAILY_CAP_PCT` of the pool per 24 hours (default 10%; keep it above
+    6.5% or a Ghost Whale could never be cashed in).
 - Cash-ins add to the player's **claimable** SOL. A claim (min 0.01 SOL) queues a payout.
 
 ## The reward pool and payouts
@@ -112,6 +113,15 @@ curl -X POST https://your.site/api/admin/payouts/12 -H "x-admin-key: $ADMIN_KEY"
 ```
 
 Players see their claims and the transaction links in the reward pool panel.
+
+## Lobbies
+
+The server also speaks WebSocket on `/ws`. Players are put in the lowest-numbered lobby with room
+(50 per lobby) and see everyone in it walk, fish and change rods, with name tags (short wallet
+address, or `guest-xxxx`). When a signed-in player lands an Epic or rarer fish, the rest of their
+lobby gets a shout-out. There is no chat. Positions are cosmetic: fish, gold and the pool never go
+over the socket. Lobbies live in memory, so run one server instance (Render's single instance is
+fine).
 
 ## Cheating
 
@@ -153,5 +163,4 @@ the SQLite file works: a VPS, Fly.io, Railway or Render with a volume. Run it be
 - Automatic on-chain payouts. Claims queue for manual payment; a payout worker can be added once the
   fee wallet setup is decided.
 - Buying shop items with the token, or burning it. Everything is bought with in-game gold.
-- Multiplayer. Each player is alone on their own pier for now.
 - Real-device testing on phones. Touch controls were only tested in an emulator.

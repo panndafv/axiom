@@ -84,9 +84,13 @@ function bearer(req) {
 
 // Returns the signed-in wallet, or null when there is no valid session.
 export function sessionWallet(req, now = Date.now()) {
-  const token = bearer(req);
-  if (!token) return null;
-  const row = stmt('SELECT wallet, expires FROM sessions WHERE token = ?').get(hashToken(token));
+  return walletForToken(bearer(req), now);
+}
+
+// The wallet a session token belongs to, or null. Used by the lobby socket, which has no headers.
+export function walletForToken(token, now = Date.now()) {
+  if (typeof token !== 'string' || !/^[0-9a-f]{64}$/i.test(token)) return null;
+  const row = stmt('SELECT wallet, expires FROM sessions WHERE token = ?').get(hashToken(token.toLowerCase()));
   if (!row || row.expires < now) return null;
   return row.wallet;
 }

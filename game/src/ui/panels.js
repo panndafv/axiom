@@ -2,7 +2,8 @@ import { h, fmt } from './dom.js';
 import { fishIcon, rodIcon, baitIcon, outfitIcon } from './icons.js';
 import { CONFIG } from '../config.js';
 import {
-  GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, BAITS, OUTFITS, rarityOdds,
+  GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, BAITS, OUTFITS, rarityOdds, speciesOdds,
+  speciesPoolPct, fishValue,
 } from '../../shared/rules.js';
 import { shortAddress, isMobile, phantomDeepLink } from '../net/wallet.js';
 import { sfx } from '../game/audio.js';
@@ -71,18 +72,18 @@ export function createPanels(app) {
       title: 'How to play',
       cls: 'teal',
       render: () => [
-        h('h3', 'One cast, four beats'),
-        h('p', 'Walk to any edge of the pier and press ', kbd('E'), ' when it says FISH HERE.'),
-        h('p', h('b', '1 · CAST'), ' — ', kbd('Space'), ' or click. The bobber lands where it lands.'),
-        h('p', h('b', '2 · WAIT'), ' — a bite comes on its own. Nothing to time.'),
-        h('p', h('b', '3 · REEL'), ' — HOLD ', kbd('Space'), ' or the mouse to pull. Progress and tension both rise; release to bleed tension while progress slips. When the fish ',
-          h('b', 'SURGES'), ', let go — max tension ', h('span.hot', 'SNAPS'), ' the line.'),
-        h('p', h('b', '4 · BANK OR PUSH'), ` — every landed fish bumps the multiplier (+${GAME.multStep.toFixed(2)}). `, kbd('B'),
-          ' banks stringer × multiplier into the run. A snap loses the ', h('b', 'whole unbanked stringer'), '. When the oil runs out, ', kbd('R'), ' closes the results.'),
+        h('h3', 'Fishing'),
+        h('p', 'Walk to any edge of the pier and press ', kbd('E'), ' when it says FISH HERE. Fish as long as you like and press ', kbd('E'), ' again to stop.'),
+        h('p', h('b', 'CAST'), ' — ', kbd('Space'), ' or click. The bobber lands where it lands.'),
+        h('p', h('b', 'WAIT'), ' — a bite comes on its own. Nothing to time.'),
+        h('p', h('b', 'REEL'), ' — HOLD ', kbd('Space'), ' or the mouse to pull. Progress and tension both rise; release to bleed tension while progress slips. When the fish ',
+          h('b', 'SURGES'), ', let go: max tension ', h('span.hot', 'SNAPS'), ' the line and the fish is gone.'),
+        h('h3', 'Your backpack'),
+        h('p', `Every fish you land goes straight into your 🎒 backpack, which holds ${GAME.storageMax}. Sell them for gold at the fish rack, or hold the rare ones and cash them in at the reward pool. When the backpack is full, sell some before you cast again.`),
         h('h3', 'Luck'),
         h('p', 'Rods and bait add 🍀 luck. More luck means rarer fish bite more often. Buy them at the ⚓ shop with the gold you make selling fish.'),
-        h('h3', 'The lantern'),
-        h('p', `One lantern burns for ${GAME.oilMs / 1000} seconds. When the oil is out the run is scored. Banked fish go in your 🎒 backpack, which holds ${GAME.storageMax}. Sell them for gold at the fish rack, or hold the rare ones and cash them in at the reward pool. If the backpack is full when you bank, your cheapest fish are sold to make room.`),
+        h('h3', 'Lobbies'),
+        h('p', 'Up to 50 anglers share a pier. When someone in your lobby lands an Epic or rarer fish, everyone hears about it.'),
         h('h3', 'The reward pool'),
         h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills a SOL pool. Rare, Epic, Legendary and Mythic fish can be cashed in for a fixed % of whatever is in the pool at that moment — the rarer the fish, the bigger the slice. To cash in you need a connected wallet holding at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}, and ${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish.`),
         h('h3', 'On the deck'),
@@ -115,7 +116,7 @@ export function createPanels(app) {
         return [
           h('div.stat-line', h('span', `${fish.length} / ${GAME.storageMax} fish`), h('span.cash', `worth ✦${fmt.int(total)}`)),
           h('p.note', full
-            ? 'Your backpack is full. If you bank more fish, the cheapest ones are sold automatically.'
+            ? 'Your backpack is full. Sell some at the fish rack before you cast again.'
             : 'Sell fish for gold at the ✦ FISH RACK on the main deck. Cash rare ones in at the ◆ REWARD POOL chest.'),
           fish.length
             ? h('div.rows', fish.map((f) => {
@@ -127,7 +128,7 @@ export function createPanels(app) {
                 h('span.val', `✦${f.value}`),
                 h('span'));
             }))
-            : h('div.empty', 'Empty. Catch some fish and press B to bank them.'),
+            : h('div.empty', 'Empty. Walk to any edge of the pier and catch some fish.'),
         ];
       },
     });
@@ -160,8 +161,8 @@ export function createPanels(app) {
       const sp = SPECIES_BY_ID[sid];
       fish.sort((a, b) => a.value - b.value);
       const r = RARITIES[sp.rarity];
-      const canPool = r.poolPct > 0;
-      const estimate = canPool && pool ? Math.floor(pool.availableLamports * r.poolPct) : 0;
+      const canPool = speciesPoolPct(sid) > 0;
+      const estimate = canPool && pool ? Math.floor(pool.availableLamports * speciesPoolPct(sid)) : 0;
       return h('div.row',
         rarityTag(sp.rarity),
         h('div.fish-name', fishIcon(sp, 40), h('span', `${sp.name} ×${fish.length}`)),
@@ -180,11 +181,11 @@ export function createPanels(app) {
       );
     });
 
-    const rareIds = pr.storage.filter((f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].poolPct > 0).map((f) => f.id);
+    const rareIds = pr.storage.filter((f) => speciesPoolPct(f.sp) > 0).map((f) => f.id);
     return [
       h('div.stat-line', h('span.cash', `✦ ${fmt.int(pr.cash)} gold`), h('span.sol', `▲ ${fmt.sol(pr.claimable)} claimable`)),
       h('p.note', status.why),
-      rows.length ? h('div.rows', rows) : h('div.empty', 'Nothing on the rack yet. Bank some fish at a fishing spot.'),
+      rows.length ? h('div.rows', rows) : h('div.empty', 'Your backpack is empty. Catch some fish first.'),
       h('div.row-foot',
         h('span', `🎒 ${pr.storage.length} / ${GAME.storageMax} in your backpack`),
         h('div', { style: { display: 'flex', gap: '8px' } },
@@ -318,25 +319,34 @@ export function createPanels(app) {
   }
 
   // ---------------------------------------------------------------------------------- catch log
+  // Rarities in columns, two per column, rarest on the right.
+  const LOG_COLUMNS = [['common', 'uncommon'], ['rare', 'epic'], ['legendary', 'mythic']];
   function catchLog() {
     open('log', {
       title: 'Catch log',
       cls: 'wide',
       render: () => {
         const log = p()?.log || {};
-        const found = SPECIES.filter((s) => log[s.id]).length;
+        const found = SPECIES.filter((sp) => log[sp.id]).length;
+        const row = (sp) => {
+          const e = log[sp.id];
+          const r = RARITIES[sp.rarity];
+          return h(`div.log-row${e ? '' : '.unknown'}`,
+            fishIcon(sp, 44, { silhouette: !e }),
+            h('div',
+              h('div.nm', e ? sp.name : '??????', sp.special && e ? h('span.special', ' ★') : null),
+              h('div.sub', e ? `✦${fishValue(sp, e.maxKg)} best · ${fmt.kg(e.maxKg)}` : 'not caught')),
+            h('span.count', { style: e ? { color: r.color } : null }, e ? `×${e.n}` : '–'));
+        };
         return [
-          h('p.note', `${found} / ${SPECIES.length} species found`),
-          h('div.cards', SPECIES.map((sp) => {
-            const e = log[sp.id];
-            return h(`div.card${e ? '' : '.unknown'}`, { style: { minHeight: '170px' } },
-              e ? h('span.count', `×${e.n}`) : null,
-              fishIcon(sp, 90),
-              h('div.name', e ? sp.name : '???'),
-              rarityTag(sp.rarity),
-              h('div.blurb', e ? `${sp.blurb} Best ${fmt.kg(e.maxKg)}.` : 'Not caught yet.'),
-            );
-          })),
+          h('p.note', `${found} / ${SPECIES.length} species found · ★ the Ghost Whale is the rarest fish in the sea`),
+          h('div.log-cols', LOG_COLUMNS.map((ids) => h('div.log-col', ids.map((rid) => {
+            const list = SPECIES.filter((sp) => sp.rarity === rid);
+            const got = list.filter((sp) => log[sp.id]).length;
+            return h('section',
+              h('div.log-head', { style: { color: RARITIES[rid].color } }, RARITIES[rid].label.toUpperCase(), h('span', `${got}/${list.length}`)),
+              list.map(row));
+          })))),
         ];
       },
     });
@@ -354,12 +364,12 @@ export function createPanels(app) {
         if (!data) return h('div.empty', 'Loading…');
         const me = app.session?.wallet ? shortAddress(app.session.wallet) : null;
         return [
-          h('p.note', `Best single-lantern run. Your best: ${fmt.int(p()?.best || 0)}${data.me?.rank ? ` (#${data.me.rank})` : ''}${data.offline ? ' · server offline, showing this device only' : ''}`),
+          h('p.note', `Ranked by the total value of every fish caught. Yours: ✦${fmt.int(p()?.caught || 0)}${data.me?.rank ? ` (#${data.me.rank})` : ''}${data.offline ? ' · server offline, showing this device only' : ''}`),
           data.top.length
             ? h('table.table',
-              h('tr', h('th', '#'), h('th', 'angler'), h('th', 'best run'), h('th', 'fish')),
-              data.top.map((r, i) => h(`tr${r.name === me ? '.me' : ''}`, h('td', i + 1), h('td', r.name), h('td.cash', fmt.int(r.best)), h('td', fmt.int(r.landed)))))
-            : h('div.empty', 'No runs yet. Be the first.'),
+              h('tr', h('th', '#'), h('th', 'angler'), h('th', 'catch value'), h('th', 'fish')),
+              data.top.map((r, i) => h(`tr${r.name === me ? '.me' : ''}`, h('td', i + 1), h('td', r.name), h('td.cash', `✦${fmt.int(r.caught)}`), h('td', fmt.int(r.landed)))))
+            : h('div.empty', 'No catches yet. Be the first.'),
         ];
       },
     });
@@ -382,8 +392,8 @@ export function createPanels(app) {
           h('div.results-grid',
             stat('gold', `✦${fmt.int(pr.cash)}`),
             stat('lifetime gold', fmt.int(pr.lifetimeCash)),
-            stat('best run', fmt.int(pr.best)),
-            stat('runs', fmt.int(pr.runs)),
+            stat('catch value', `✦${fmt.int(pr.caught)}`),
+            stat('backpack', `${pr.storage.length} / ${GAME.storageMax}`),
             stat('fish landed', fmt.int(pr.landed)),
             stat('snaps', fmt.int(pr.snaps)),
             stat('luck', `🍀 ${pr.luck}`),
@@ -440,7 +450,13 @@ export function createPanels(app) {
                 h('td', `${(odds[rid] * 100).toFixed(odds[rid] < 0.01 ? 2 : 1)}%`),
                 h('td', r.poolPct ? fmt.pct(r.poolPct) : h('span.muted', 'cash only')),
                 h('td', r.poolPct ? h('span.sol', info ? fmt.sol(Math.floor(info.availableLamports * r.poolPct)) : '—') : h('span.cash', `✦${r.sell}`)));
-            })),
+            }),
+            SPECIES.filter((sp) => sp.special).map((sp) => h('tr.special-row',
+              h('td', h('span.rar', { style: { color: RARITIES[sp.rarity].color } }, `★ ${sp.name}`)),
+              h('td', `${(speciesOdds(sp.id, pr.luck || 0) * 100).toFixed(3)}%`),
+              h('td', h('b', fmt.pct(sp.poolPct))),
+              h('td', h('span.sol', info ? fmt.sol(Math.floor(info.availableLamports * sp.poolPct)) : '—'))))),
+          h('p.note', '★ The Ghost Whale is the rarest fish in the game and pays the biggest share of the pool.'),
           h('h3', 'Your status'),
           isGuest()
             ? h('p', 'Guests can fish and sell for gold. ', h('button.pill-btn.teal', { on: { click: () => { close(); app.connectWallet(); } } }, 'connect wallet'), ' to cash in.')
@@ -450,7 +466,7 @@ export function createPanels(app) {
                 check(!!app.holding?.ok, app.holding?.dev ? 'holding check off (dev mode)' : `holds ≥ $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}${app.holding ? ` (now ${fmt.usd(app.holding.usd || 0)})` : ''}`),
                 check(pr.lifetimeCash >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} lifetime gold (${fmt.int(pr.lifetimeCash)})`),
               ),
-              h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.05)} of the pool.` : status.why),
+              h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.1)} of the pool.` : status.why),
               h('div.stat-line', { style: { marginTop: '10px' } },
                 h('span', 'claimable ', h('span.sol', fmt.sol(pr.claimable))),
                 h('button.pill-btn.teal', {
@@ -513,30 +529,6 @@ export function createPanels(app) {
     });
   }
 
-  // ---------------------------------------------------------------------------------- results
-  function results(res, onDone) {
-    open('results', {
-      title: "Lantern's out",
-      onClose: onDone,
-      render: () => [
-        res.newBest ? h('p', { style: { color: 'var(--gold)', fontWeight: 700 } }, '★ NEW BEST RUN ★') : null,
-        h('div.results-grid',
-          h('div.results-score', 'run score', h('b', fmt.int(res.score))),
-          h('div', 'best', h('b', fmt.int(res.best))),
-          h('div', 'fish landed', h('b', res.landed)),
-          h('div', 'banked', h('b', res.banked)),
-          h('div', 'snaps', h('b', res.snaps)),
-          h('div', 'got away', h('b', res.escapes)),
-        ),
-        res.autoBanked ? h('p.note', `Your last stringer (${res.autoBanked.count} fish) was banked automatically at ×${res.autoBanked.mult.toFixed(2)}.`) : null,
-        h('p.note', 'Banked fish are waiting on the fish rack. ', kbd('R'), ' or ', kbd('Esc'), ' to close.'),
-        h('div', { style: { display: 'flex', gap: '8px', marginTop: '10px' } },
-          h('button.pill-btn', { on: { click: () => close() } }, 'fish again'),
-          h('button.pill-btn.dark', { on: { click: () => { close(); app.leaveFishing(); } } }, 'back to the deck')),
-      ],
-    });
-  }
-
   function noWallet() {
     open('nowallet', {
       title: 'Connect a wallet',
@@ -554,7 +546,7 @@ export function createPanels(app) {
   }
 
   return {
-    howTo, rack, backpack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, results, noWallet,
+    howTo, rack, backpack, shop, rods, catchLog, leaderboard, profile, pool, settings, credits, noWallet,
     close, rerender,
     get open() { return current?.name || null; },
   };

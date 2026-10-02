@@ -13,6 +13,7 @@ import { openDb, closeDb, withProfile, topScores, rankOf } from './db.js';
 import * as auth from './auth.js';
 import * as pool from './pool.js';
 import { holding } from './solana.js';
+import * as lobby from './lobby.js';
 import * as engine from '../shared/engine.js';
 import { GameError } from '../shared/engine.js';
 import { SHOP } from '../shared/rules.js';
@@ -83,6 +84,8 @@ const admin = (fn) => (ctx) => {
 // Routes. Handlers get { req, query, body, params } and return the JSON to send.
 
 const routes = {
+  'GET /api/lobbies': () => lobby.stats(),
+
   'GET /api/health': () => ({ ok: true }),
 
   'GET /api/config': () => ({
@@ -123,46 +126,20 @@ const routes = {
 
   // --- runs
 
-  'POST /api/run/start': user((wallet) => play(wallet, (p, now) => ({ run: engine.startRun(p, now) }))),
+  'POST /api/fish/cast': user((wallet) => play(wallet, (p, now) => engine.cast(p, now))),
 
-  'POST /api/run/cast': user((wallet, { body }) => {
-    const runId = needString(body, 'runId');
-    return play(wallet, (p, now) => engine.cast(p, runId, now));
-  }),
-
-  'POST /api/run/land': user((wallet, { body }) => {
-    const runId = needString(body, 'runId');
+  'POST /api/fish/land': user((wallet, { body }) => {
     const castId = needString(body, 'castId');
-    // engine.land clears the cast before throwing oil_out, so keep that change instead of
-    // rolling it back (otherwise the dead cast blocks banking for the rest of the run).
-    const out = withProfile(wallet, (p, now) => {
-      try {
-        return { ...engine.land(p, runId, castId, now), profile: engine.publicProfile(p, now) };
-      } catch (err) {
-        if (err instanceof GameError && err.code === 'oil_out') return { failed: err };
-        throw err;
-      }
-    });
-    if (out.failed) throw out.failed;
+    const out = play(wallet, (p, now) => engine.land(p, castId, now));
+    lobby.announceCatch(wallet, out.fish);
     return out;
   }),
 
-  'POST /api/run/lose': user((wallet, { body }) => {
-    const runId = needString(body, 'runId');
+  'POST /api/fish/lose': user((wallet, { body }) => {
     const castId = needString(body, 'castId');
     const { reason } = body;
     if (!['snap', 'escape', 'cancel'].includes(reason)) throw badRequest('reason must be snap, escape or cancel.');
-    return play(wallet, (p, now) => engine.lose(p, runId, castId, reason, now));
-  }),
-
-  'POST /api/run/bank': user((wallet, { body }) => {
-    const runId = needString(body, 'runId');
-    return play(wallet, (p, now) => engine.bank(p, runId, now));
-  }),
-
-  'POST /api/run/end': user((wallet, { body }) => {
-    const runId = needString(body, 'runId');
-    return play(wallet, (p, now) => ({ results: engine.endRun(p, runId, now) }));
+    return play(wallet, (p, now) => engine.lose(p, castId, reason, now));
   }),
 
   // --- shop
@@ -227,9 +204,11 @@ const routes = {
   'GET /api/payouts': user((wallet) => ({ payouts: pool.payoutsFor(wallet, 20) })),
 
   'GET /api/leaderboard': ({ req }) => {
-    const top = topScores(25).map((r) => ({ name: shortWallet(r.wallet), best: r.best, landed: r.landed }));
+    const top = topScores(25).map((r) => ({ name: shortWallet(r.wallet), caught: r.best, landed: r.landed }));
     const wallet = auth.sessionWallet(req);
-    return wallet ? { top, me: { name: shortWallet(wallet), ...rankOf(wallet) } } : { top };
+    if (!wallet) return { top };
+    const { rank, best } = rankOf(wallet);
+    return { top, me: { name: shortWallet(wallet), rank, caught: best } };
   },
 
   // --- admin
@@ -520,6 +499,7 @@ export async function startServer({ port = config.port, host = config.host, dbPa
   openDb(dbPath);
   const seeded = pool.seedTestPool(config.seedPoolLamports);
   const server = createServer();
+  lobby.attach(server);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, resolve);

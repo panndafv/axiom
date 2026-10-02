@@ -94,10 +94,10 @@ export function boardTexture(w = 256, h = 320) {
     if (!lines.length) {
       g.fillStyle = '#7f93a8';
       g.textAlign = 'center';
-      g.fillText('no runs yet', w / 2, 120);
+      g.fillText('no catches yet', w / 2, 120);
     }
     tex.needsUpdate = true;
   }
-  draw('TOP RUNS', []);
+  draw('TOP ANGLERS', []);
   return { texture: tex, draw };
 }

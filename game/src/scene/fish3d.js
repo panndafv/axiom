@@ -46,7 +46,7 @@ export function createFish(species, { glow = false } = {}) {
   const [top, belly, accent] = species.colors;
   const g = new THREE.Group();
 
-  const bodyGeo = new THREE.SphereGeometry(0.5, 10, 7);
+  const bodyGeo = new THREE.SphereGeometry(0.5, 7, 5); // few facets: chunky, retro
   bodyGeo.scale(s.len, s.h, s.w);
   if (species.shape === 'shark' || species.shape === 'tuna' || species.shape === 'marlin') {
     // pointier nose, thicker shoulders
@@ -99,7 +99,8 @@ export function createFish(species, { glow = false } = {}) {
 
   // eyes
   for (const z of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.035, s.h * 0.09), 6, 4), new THREE.MeshStandardMaterial({ color: '#111' }));
+    const e = Math.max(0.06, s.h * 0.16);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(e, e, 0.02), new THREE.MeshStandardMaterial({ color: '#111' }));
     eye.position.set(half * 0.62, s.h * 0.1, z * s.w * 0.38);
     g.add(eye);
   }

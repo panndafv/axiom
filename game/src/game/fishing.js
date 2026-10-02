@@ -4,13 +4,13 @@ import { createFish } from '../scene/fish3d.js';
 import { rodTipWorld } from '../scene/characters.js';
 import { sfx } from './audio.js';
 
-// One run at a fishing spot: cast → wait → reel → land or snap → bank, until the lantern is out.
-// The backend (server or local engine) decides what bites and checks every landing; this file
-// only plays the fight and shows it.
+// Fishing from the edge of the pier: cast → wait → reel → land or lose, as many times as you like.
+// Every landed fish goes straight into the backpack. The backend (server or local engine) decides
+// what bites and checks every landing; this file only plays the fight and shows it.
 
 const LINE_POINTS = 24;
 
-function makeBobber() {
+export function makeBobber() {
   const g = new THREE.Group();
   const top = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#e8333a', emissive: '#6a0a0a', flatShading: true }));
   const bot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#f7f3ea', flatShading: true }));
@@ -120,63 +120,50 @@ export function createFishing({ scene, player, app, hud, input }) {
   const rings = makeRings(scene);
 
   let spot = null;
-  let state = 'off'; // off | idle | casting | waiting | fighting | busy | results
-  let run = null;
-  let runEnd = 0;
+  let state = 'off'; // off | idle | casting | waiting | fighting | busy
   let cast = null;
   let landed = null; // flying fish animation
   let castAnim = null;
-  let finishing = false;
   let reelTick = 0;
+  let enteredAt = 0;
+  let leftAt = -1e9;
+  let session = []; // fish landed since stepping up to the edge
   const tip = new THREE.Vector3();
   const bobberRest = new THREE.Vector3();
   const shore = new THREE.Vector3();
 
   const now = () => performance.now();
   const errorToast = (err) => app.toast(err.message || String(err), 'error');
+  const backpackFull = () => (app.profile?.storage.length || 0) >= GAME.storageMax;
 
-  function setRun(r) {
-    run = r;
-    if (r) runEnd = now() + r.msLeft;
-    hud.fishing.setRun(run, app.profile);
+  function refreshPrompt() {
+    hud.fishing.setPrompt(state, { full: backpackFull() });
+    hud.fishing.setSession(session, app.profile);
   }
 
-  let enteredAt = 0;
   function enter(s) {
     spot = s;
     state = 'idle';
     enteredAt = now();
-    finishing = false;
+    session = [];
     player.setMode('fish', { spot });
     hud.fishing.show();
-    // resume a run that is still burning (e.g. left and came back quickly)
-    const r = app.profile?.run;
-    setRun(r && r.msLeft > 0 ? r : null);
-    if (run?.cast) {
-      // a cast left in the water by a page reload: reel it in
-      app.call('lose', run.id, run.cast.id, 'cancel').then((res) => setRun(res.run)).catch(() => {});
-    }
+    // a line left in the water by a page reload: reel it in
+    const left = app.profile?.cast;
+    if (left) app.call('lose', left.id, 'cancel').catch(() => {});
     refreshPrompt();
   }
 
-  async function leave() {
+  // Stop fishing whenever you like; everything you landed is already in the backpack.
+  function leave() {
     if (state === 'off') return;
-    if (state === 'fighting' || state === 'casting' || state === 'waiting') {
-      if (cast?.castId) await app.call('lose', run.id, cast.castId, 'cancel').catch(() => {});
-      clearCast();
-    }
-    if (run) {
-      pendingLeave = true;
-      await finishRun();
-      if (state === 'results') return; // exit once the results are closed
-    }
+    if (cast?.castId) app.call('lose', cast.castId, 'cancel').catch(() => {});
     exit();
   }
 
-  let pendingLeave = false;
   function exit() {
     state = 'off';
-    pendingLeave = false;
+    leftAt = now();
     clearCast();
     hud.fishing.hide();
     player.setMode('walk');
@@ -192,26 +179,15 @@ export function createFishing({ scene, player, app, hud, input }) {
     hud.fishing.hideReel();
   }
 
-  function refreshPrompt() {
-    hud.fishing.setPrompt(state, { mult: run?.mult || 1, stringer: run?.stringer?.length || 0 });
-  }
-
   async function doCast() {
     if (state !== 'idle') return;
-    // the lantern just went out: show this run's results before a new one starts
-    if (run && runEnd - now() <= 0) return finishRun();
+    if (backpackFull()) {
+      sfx.error();
+      app.toast(`🎒 Your backpack is full (${GAME.storageMax}). Sell fish at the fish rack to keep fishing.`, 'error');
+      return;
+    }
     state = 'casting';
     refreshPrompt();
-    try {
-      if (!run) {
-        const res = await app.call('startRun');
-        setRun(res.run);
-      }
-    } catch (err) {
-      state = 'idle';
-      refreshPrompt();
-      return errorToast(err);
-    }
 
     // Pick where the bobber lands ("it lands where it lands"), but always in open water: from
     // some edges another deck or the lighthouse rocks are in the way, so try shorter casts and
@@ -232,7 +208,11 @@ export function createFishing({ scene, player, app, hud, input }) {
     sfx.cast();
     cast = { castId: null, pending: true };
     try {
-      const res = await app.call('cast', run.id);
+      const res = await app.call('cast');
+      if (state === 'off') {
+        app.call('lose', res.castId, 'cancel').catch(() => {}); // walked away mid-cast
+        return;
+      }
       cast = {
         castId: res.castId,
         biteAt: now() + res.biteInMs,
@@ -240,13 +220,11 @@ export function createFishing({ scene, player, app, hud, input }) {
         luck: res.luck,
         params: reelParams({ difficulty: res.fight.difficulty }, RODS_BY_ID[app.profile.rod] || RODS_BY_ID.driftwood),
       };
-      hud.fishing.setRun(run, app.profile);
     } catch (err) {
       clearCast();
-      state = 'idle';
+      if (state !== 'off') state = 'idle';
       refreshPrompt();
       errorToast(err);
-      if (err.code === 'oil_out' || err.code === 'no_run') finishRun();
     }
   }
 
@@ -264,6 +242,10 @@ export function createFishing({ scene, player, app, hud, input }) {
     refreshPrompt();
   }
 
+  const backToIdle = (delay) => setTimeout(() => {
+    if (state === 'busy') { state = 'idle'; refreshPrompt(); }
+  }, delay);
+
   async function resolve(kind) {
     state = 'busy';
     const c = cast;
@@ -274,7 +256,7 @@ export function createFishing({ scene, player, app, hud, input }) {
         let res;
         for (let attempt = 0; ; attempt++) {
           try {
-            res = await app.call('land', run.id, c.castId);
+            res = await app.call('land', c.castId);
             break;
           } catch (err) {
             // the server says we were a hair too quick (clock drift): wait and try again
@@ -282,36 +264,36 @@ export function createFishing({ scene, player, app, hud, input }) {
             throw err;
           }
         }
-        setRun(res.run);
         const sp = SPECIES_BY_ID[res.fish.sp];
+        session.push(res.fish);
         showLanded(sp, res.fish, res.isNew);
+        app.onCatch?.(res.fish);
         line.visible = false;
         bobber.visible = false;
-        setTimeout(() => { if (state === 'busy') { state = 'idle'; refreshPrompt(); } }, 1500);
+        backToIdle(1500);
       } else {
-        const res = await app.call('lose', run.id, c.castId, kind);
-        setRun(res.run);
+        const res = await app.call('lose', c.castId, kind);
         line.visible = false;
         if (kind === 'snap') {
           sfx.snap();
           app.shake(0.35);
-          hud.fishing.banner(res.lost.length ? `Snapped! −${res.lost.length} fish` : 'Snapped!', 'snap');
+          hud.fishing.banner('Snapped!', 'snap');
         } else {
           sfx.escape();
           hud.fishing.banner('It got away', 'info');
           bobber.visible = false;
         }
         // a lost fish frees the line no sooner than landing it would have
-        const wait = Math.max(900, res.run?.readyInMs || 0);
+        const wait = Math.max(900, res.readyInMs || 0);
         if (wait > 1500) hud.fishing.cooldown(wait);
-        setTimeout(() => { bobber.visible = false; if (state === 'busy') { state = 'idle'; refreshPrompt(); } }, wait);
+        setTimeout(() => { bobber.visible = false; }, 900);
+        backToIdle(wait);
       }
     } catch (err) {
       errorToast(err);
       clearCast();
-      state = 'idle';
+      if (state !== 'off') state = 'idle';
       refreshPrompt();
-      if (err.code === 'oil_out' || err.code === 'no_run') finishRun();
     }
     cast = null;
     player.state.reel = 0;
@@ -331,51 +313,6 @@ export function createFishing({ scene, player, app, hud, input }) {
     landed = { mesh, t: 0, from: bobber.position.clone(), to };
     hud.fishing.reveal(sp, fish, isNew);
     hud.fishing.lastCatch(`${rarity.label} · ${sp.name} +${fish.value}`, rarity.color);
-  }
-
-  async function bank() {
-    if (!run?.stringer?.length || !['idle', 'waiting'].includes(state)) return;
-    try {
-      const res = await app.call('bank', run.id);
-      setRun(res.run);
-      sfx.bank();
-      hud.fishing.banner(`+${res.score} banked${res.mult > 1 ? ` ×${res.mult.toFixed(2)}` : ''}`, 'bank');
-      if (res.autoSold) app.toast(`🎒 Backpack full: sold your ${res.autoSold} cheapest fish for ✦${res.autoSoldCash}`);
-      refreshPrompt();
-    } catch (err) {
-      errorToast(err);
-    }
-  }
-
-  async function finishRun() {
-    if (finishing || !run) return;
-    finishing = true;
-    const prev = state;
-    state = 'busy';
-    clearCast();
-    try {
-      const res = await app.call('endRun', run.id);
-      run = null;
-      hud.fishing.setRun(null, app.profile);
-      if (res.results && (res.results.landed > 0 || !pendingLeave)) {
-        sfx.oilOut();
-        state = 'results';
-        app.showResults(res.results, () => {
-          if (state !== 'results') return; // already left (e.g. went home)
-          state = 'idle';
-          refreshPrompt();
-          if (pendingLeave) exit();
-        });
-      } else {
-        state = prev === 'busy' ? 'idle' : 'idle';
-      }
-    } catch (err) {
-      errorToast(err);
-      run = null;
-      state = 'idle';
-    }
-    finishing = false;
-    refreshPrompt();
   }
 
   // ------------------------------------------------------------------------------------------
@@ -414,15 +351,6 @@ export function createFishing({ scene, player, app, hud, input }) {
     }
 
     if (state === 'off') return;
-
-    // lantern
-    if (run) {
-      const left = runEnd - now();
-      hud.fishing.setOil(Math.max(0, left), GAME.oilMs);
-      if (left <= 0 && !finishing && state !== 'busy' && state !== 'results') finishRun();
-    } else {
-      hud.fishing.setOil(null, GAME.oilMs);
-    }
 
     // cast swing + bobber flight
     if (castAnim) {
@@ -505,10 +433,8 @@ export function createFishing({ scene, player, app, hud, input }) {
   // controls
   input.on('Space', () => { if (state === 'idle' && !app.modalOpen()) doCast(); });
   input.on('Click', () => { if (state === 'idle' && !app.modalOpen()) doCast(); });
-  input.on('KeyB', () => { if (!app.modalOpen()) bank(); });
-  // Leaving is allowed between server calls only. The same E press that walked us onto the jetty
-  // must not also walk us off it.
-  const canLeave = () => ['idle', 'waiting', 'fighting'].includes(state) && !app.modalOpen() && now() - enteredAt > 250;
+  // The same E press that walked us up to the edge must not also walk us away from it.
+  const canLeave = () => state !== 'off' && !app.modalOpen() && now() - enteredAt > 250;
   input.on('KeyE', () => { if (canLeave()) leave(); });
   input.on('Escape', () => { if (canLeave()) leave(); });
 
@@ -518,18 +444,10 @@ export function createFishing({ scene, player, app, hud, input }) {
     update,
     get active() { return state !== 'off'; },
     get state() { return state; },
-    get run() { return run; },
-    // HOME button: end the run quietly (no results screen) and step off the jetty
-    async forceEnd() {
-      if (state === 'off') return;
-      const r = run, c = cast;
-      state = 'busy';
-      run = null;
-      if (r) {
-        if (c?.castId) await app.call('lose', r.id, c.castId, 'cancel').catch(() => {});
-        await app.call('endRun', r.id).catch(() => {});
-      }
-      exit();
-    },
+    // the E press that stops fishing must not start it again from the same edge
+    get justLeft() { return now() - leftAt < 300; },
+    // what other players in the lobby see: the bobber while the line is out
+    bobberPosition: () => (bobber.visible ? bobber.position : null),
+    forceEnd: leave,
   };
 }

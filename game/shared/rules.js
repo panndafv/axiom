@@ -3,14 +3,11 @@
 // and does all pool math. Change the numbers here and both sides follow.
 
 export const GAME = {
-  oilMs: 90_000,          // one lantern burns this long per run
-  landGraceMs: 2_500,     // a fight that ends just after the oil runs out still counts (network lag)
   castCooldownMs: 400,    // minimum time between a resolved cast and the next one
+  castStaleMs: 60_000,    // a line left in the water this long after the bite is reeled in for you
   biteMinMs: 1_600,       // a bite comes on its own somewhere in this window
   biteMaxMs: 5_200,
-  multStep: 0.1,          // every landed fish bumps the stringer multiplier by this (x1.10, x1.20, ...)
-  multMax: 3,
-  storageMax: 15,         // backpack size; when it overflows the cheapest fish are sold for gold
+  storageMax: 15,         // backpack size: full means sell at the fish rack before casting again
   startProgress: 0.18,    // the reel starts with a little line already in
   minClaimLamports: 10_000_000, // 0.01 SOL
 };
@@ -31,24 +28,27 @@ export const RARITIES = {
 
 export const RARITY_IDS = Object.keys(RARITIES);
 
-// shape: body preset used by the 3D model and the catch-log icon.
+// shape: body preset used by the 3D model and the catch-log icon. Names stay at two words.
+// weight: how often this species bites compared with others of its rarity (default 1).
+// poolPct: overrides the rarity's share of the pool for one special fish.
 export const SPECIES = [
-  { id: 'paper_perch',   name: 'Paper-Hand Perch',   rarity: 'common',    kg: [0.2, 1.1],  difficulty: 0.06, shape: 'perch', pattern: 'stripes', colors: ['#c8b98f', '#f3ecd6', '#e3c98c'], blurb: 'Lets go at the first dip.' },
+  { id: 'paper_perch',   name: 'Paperhand Perch',    rarity: 'common',    kg: [0.2, 1.1],  difficulty: 0.06, shape: 'perch', pattern: 'stripes', colors: ['#c8b98f', '#f3ecd6', '#e3c98c'], blurb: 'Lets go at the first dip.' },
   { id: 'gas_guppy',     name: 'Gas Guppy',          rarity: 'common',    kg: [0.05, 0.3], difficulty: 0.04, shape: 'small', pattern: 'plain',   colors: ['#7fd1c7', '#e6fbf6', '#ff9f6b'], blurb: 'Costs more to catch than it is worth.' },
   { id: 'dock_sardine',  name: 'Dock Sardine',       rarity: 'common',    kg: [0.1, 0.5],  difficulty: 0.08, shape: 'long',  pattern: 'plain',   colors: ['#7d97b5', '#e8eef5', '#9fb4cc'], blurb: 'Travels in thousands. Sells in thousands.' },
   { id: 'rug_carp',      name: 'Rug Carp',           rarity: 'common',    kg: [0.8, 3.5],  difficulty: 0.14, shape: 'perch', pattern: 'spots',   colors: ['#8a7a3e', '#e7dca6', '#b39b4c'], blurb: 'Pulled the liquidity. Then the line.' },
   { id: 'bag_bass',      name: 'Bagholder Bass',     rarity: 'uncommon',  kg: [1.0, 4.5],  difficulty: 0.24, shape: 'perch', pattern: 'stripes', colors: ['#4f7a3a', '#dfe9c2', '#6d9a48'], blurb: 'Still holding from the top.' },
   { id: 'jeet_mackerel', name: 'Jeet Mackerel',      rarity: 'uncommon',  kg: [0.4, 2.0],  difficulty: 0.28, shape: 'long',  pattern: 'stripes', colors: ['#2f6f8f', '#e2f1f7', '#58a6c9'], blurb: 'In and out in one block.' },
-  { id: 'candle_snapper',name: 'Red Candle Snapper', rarity: 'uncommon',  kg: [1.2, 5.0],  difficulty: 0.3,  shape: 'perch', pattern: 'plain',   colors: ['#d8473f', '#ffd9cf', '#ff7a5c'], blurb: 'Only ever seen going down.' },
+  { id: 'candle_snapper',name: 'Candle Snapper',     rarity: 'uncommon',  kg: [1.2, 5.0],  difficulty: 0.3,  shape: 'perch', pattern: 'plain',   colors: ['#d8473f', '#ffd9cf', '#ff7a5c'], blurb: 'Only ever seen going down.' },
   { id: 'pump_puffer',   name: 'Pump Puffer',        rarity: 'rare',      kg: [0.6, 2.4],  difficulty: 0.4,  shape: 'round', pattern: 'spots',   colors: ['#3fb36b', '#f6f0b8', '#9be86a'], blurb: 'Inflates 10x on contact.' },
   { id: 'sniper_pike',   name: 'Sniper Pike',        rarity: 'rare',      kg: [2.0, 8.0],  difficulty: 0.45, shape: 'long',  pattern: 'spots',   colors: ['#56663a', '#e6e7c4', '#a0a85a'], blurb: 'First in the block, every time.' },
   { id: 'degen_eel',     name: 'Degen Eel',          rarity: 'rare',      kg: [1.0, 6.0],  difficulty: 0.48, shape: 'eel',   pattern: 'plain',   colors: ['#40306a', '#9f8fd0', '#ff5fd2'], blurb: 'Fully leveraged, fully slippery.' },
   { id: 'liq_lionfish',  name: 'Liquidity Lionfish', rarity: 'epic',      kg: [0.8, 2.6],  difficulty: 0.6,  shape: 'tall',  pattern: 'stripes', colors: ['#c2453a', '#fff1e4', '#ffb08a'], blurb: 'Every spine is locked for a year.' },
   { id: 'ape_angler',    name: 'Ape Anglerfish',     rarity: 'epic',      kg: [3.0, 12.0], difficulty: 0.62, shape: 'angler',pattern: 'plain',   colors: ['#3b3042', '#7a6a83', '#fff27a'], blurb: 'Follows the glowing thing. Always.' },
-  { id: 'diamond_tuna',  name: 'Diamond-Fin Tuna',   rarity: 'legendary', kg: [20, 90],    difficulty: 0.78, shape: 'tuna',  pattern: 'plain',   colors: ['#1d3f75', '#dfe8f5', '#9ff3ff'], blurb: 'Has never sold. Will never sell.' },
-  { id: 'bull_koi',      name: 'Golden Bull Koi',    rarity: 'legendary', kg: [4, 16],     difficulty: 0.8,  shape: 'perch', pattern: 'spots',   colors: ['#f2b233', '#fff3c9', '#ff7b2e'], blurb: 'Only swims up and to the right.' },
-  { id: 'moon_marlin',   name: 'Moon Marlin',        rarity: 'mythic',    kg: [80, 320],   difficulty: 0.92, shape: 'marlin',pattern: 'plain',   colors: ['#23305f', '#e9ecff', '#c9b6ff'], blurb: 'Pointed straight at the moon.' },
-  { id: 'ghost_whale',   name: 'Ghost Whale',        rarity: 'mythic',    kg: [400, 1600], difficulty: 0.96, shape: 'shark', pattern: 'spots',   colors: ['#b9d7e6', '#f5fbff', '#e0f7ff'], blurb: 'Moves the whole chart when it turns.' },
+  { id: 'diamond_tuna',  name: 'Diamond Tuna',       rarity: 'legendary', kg: [20, 90],    difficulty: 0.78, shape: 'tuna',  pattern: 'plain',   colors: ['#1d3f75', '#dfe8f5', '#9ff3ff'], blurb: 'Has never sold. Will never sell.' },
+  { id: 'bull_koi',      name: 'Bull Koi',           rarity: 'legendary', kg: [4, 16],     difficulty: 0.8,  shape: 'perch', pattern: 'spots',   colors: ['#f2b233', '#fff3c9', '#ff7b2e'], blurb: 'Only swims up and to the right.' },
+  { id: 'moon_marlin',   name: 'Moon Marlin',        rarity: 'mythic',    kg: [80, 320],   difficulty: 0.92, weight: 3, shape: 'marlin',pattern: 'plain',   colors: ['#23305f', '#e9ecff', '#c9b6ff'], blurb: 'Pointed straight at the moon.' },
+  // The rarest fish in the game (1 in 4 mythics) and the biggest slice of the pool.
+  { id: 'ghost_whale',   name: 'Ghost Whale',        rarity: 'mythic',    kg: [400, 1600], difficulty: 0.96, weight: 1, poolPct: 0.065, special: true, shape: 'shark', pattern: 'spots',   colors: ['#b9d7e6', '#f5fbff', '#e0f7ff'], blurb: 'Moves the whole chart when it turns.' },
 ];
 
 export const SPECIES_BY_ID = Object.fromEntries(SPECIES.map((s) => [s.id, s]));
@@ -152,7 +152,12 @@ export function rollSpecies(luck = 0, rng = cryptoRng) {
     if (pick < 0) { rarity = id; break; }
   }
   const pool = SPECIES.filter((s) => s.rarity === rarity);
-  return pool[Math.floor(rng() * pool.length)];
+  let pickSp = rng() * pool.reduce((sum, s) => sum + (s.weight ?? 1), 0);
+  for (const s of pool) {
+    pickSp -= s.weight ?? 1;
+    if (pickSp < 0) return s;
+  }
+  return pool[pool.length - 1];
 }
 
 export function rollKg(species, rng = cryptoRng) {
@@ -171,7 +176,25 @@ export function biteDelayMs(luck = 0, rng = cryptoRng) {
   return Math.round(GAME.biteMinMs + span * rng() * (1 - Math.min(luck, 80) / 200));
 }
 
-// Share of the available pool one fish pays out, in lamports.
+// Share of the pool one fish of this species pays when cashed in (0 = gold only).
+export function speciesPoolPct(speciesId) {
+  const sp = SPECIES_BY_ID[speciesId];
+  return sp ? sp.poolPct ?? RARITIES[sp.rarity].poolPct : 0;
+}
+
+// How likely each species is to bite at this luck, as a fraction of all bites.
+export function speciesOdds(speciesId, luck = 0) {
+  const sp = SPECIES_BY_ID[speciesId];
+  const peers = SPECIES.filter((s) => s.rarity === sp.rarity);
+  const share = (sp.weight ?? 1) / peers.reduce((sum, s) => sum + (s.weight ?? 1), 0);
+  return rarityOdds(luck)[sp.rarity] * share;
+}
+
+export function speciesPayout(speciesId, availableLamports) {
+  return Math.floor(Math.max(0, availableLamports) * speciesPoolPct(speciesId));
+}
+
+// Share of the available pool one fish of a rarity pays out, in lamports.
 export function poolPayout(rarity, availableLamports) {
   const pct = RARITIES[rarity]?.poolPct ?? 0;
   return Math.floor(Math.max(0, availableLamports) * pct);

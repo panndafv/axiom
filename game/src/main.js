@@ -23,6 +23,9 @@ import { createTouchControls, isTouchDevice } from './ui/touch.js';
 import { h, fmt, toast } from './ui/dom.js';
 import { createLocalBackend, createRemoteBackend, publicApi } from './net/api.js';
 import { connectAndSignIn, disconnect as walletDisconnect, hasWallet, loadSession, saveSession } from './net/wallet.js';
+import { createLobbyClient } from './net/lobby.js';
+import { createRemotes } from './scene/remotes.js';
+import { RARITIES, SPECIES_BY_ID } from '../shared/rules.js';
 
 // ------------------------------------------------------------------------------------------------
 // Renderer
@@ -117,8 +120,10 @@ app.setMuted = (m) => {
 let lastRod = null, lastOutfit = null;
 function setProfile(p) {
   app.profile = p;
+  const looksChanged = p.rod !== lastRod || p.outfit !== lastOutfit;
   if (p.rod !== lastRod) { player.setRod(p.rod); lastRod = p.rod; }
   if (p.outfit !== lastOutfit) { player.setOutfit(p.outfit); lastOutfit = p.outfit; }
+  if (looksChanged) lobby.send({ t: 'look', outfit: p.outfit, rod: p.rod });
   world.setRackRods(p.rods);
   hud.render();
   if (title.visible) title.render();
@@ -150,13 +155,10 @@ app.onModalChange = (open) => {
 
 app.open = (name) => panels[name]?.();
 
-app.showResults = (results, onDone) => {
-  panels.results(results, onDone);
+app.onLeaveFishing = () => {
+  hud.setMode('walk');
   refreshScoreboard();
 };
-
-app.leaveFishing = () => fishing.leave();
-app.onLeaveFishing = () => hud.setMode('walk');
 
 app.recheckHolding = async (force = false) => {
   if (app.mode !== 'wallet') return;
@@ -178,6 +180,7 @@ function startPlaying() {
   player.setMode('walk', { reset: true });
   hud.setMode('walk');
   hud.render();
+  joinLobby();
   let seen = false;
   try {
     seen = !!localStorage.getItem('pp.seenHowTo');
@@ -239,6 +242,7 @@ app.disconnect = async () => {
 
 app.goHome = async () => {
   if (fishing.active) await fishing.forceEnd();
+  lobby.disconnect();
   panels.close();
   input.unlockPointer();
   player.setMode('title');
@@ -261,6 +265,73 @@ app.touchAction = (code) => {
   window.dispatchEvent(new KeyboardEvent('keydown', { code }));
   window.dispatchEvent(new KeyboardEvent('keyup', { code }));
 };
+
+// ------------------------------------------------------------------------------------------------
+// Lobby: up to 50 anglers on one pier
+
+const remotes = createRemotes(scene, document.getElementById('labels'));
+let lobbyInfo = null;
+let myLobbyId = null;
+const showLobby = () => hud.setLobby(lobbyInfo && { ...lobbyInfo, count: remotes.count + 1 });
+
+const lobby = createLobbyClient({
+  welcome(msg) {
+    myLobbyId = msg.id;
+    remotes.clear();
+    for (const p of msg.players) remotes.add(p);
+    lobbyInfo = { lobby: msg.lobby, size: msg.size };
+    showLobby();
+  },
+  join(msg) { remotes.add(msg.p); showLobby(); },
+  leave(msg) { remotes.remove(msg.id); showLobby(); },
+  u(msg) { for (const [id, ...s] of msg.p) if (id !== myLobbyId) remotes.setState(id, s); },
+  look(msg) { remotes.setLook(msg.id, msg.outfit, msg.rod); },
+  shout(msg) {
+    const sp = SPECIES_BY_ID[msg.sp];
+    if (!sp) return;
+    hud.shout(msg.name, sp, msg.kg);
+    sfx.land(RARITIES[sp.rarity].order);
+  },
+  disconnected() {
+    remotes.clear();
+    lobbyInfo = null;
+    showLobby();
+  },
+});
+
+const MODE_CODES = { walk: 0, fish: 1, sit: 2 };
+function myState() {
+  const st = player.state;
+  const s = [st.pos.x, st.pos.z, st.facing, MODE_CODES[st.mode] ?? 0, Math.min(1, st.speed)];
+  const b = fishing.bobberPosition();
+  if (b) s.push(b.x, b.z);
+  return s.map((n) => Math.round(n * 100) / 100);
+}
+
+function joinLobby() {
+  if (!app.serverOnline) return; // the static demo has no server to meet people on
+  lobby.disconnect(); // a fresh hello, in case we just switched between wallet and guest
+  lobby.connect(() => ({
+    token: app.mode === 'wallet' ? app.session?.token : undefined,
+    outfit: app.profile?.outfit,
+    rod: app.profile?.rod,
+    s: myState(),
+  }));
+}
+
+// sends our position about 8 times a second, only when it changed
+let lastSent = '';
+let sendTimer = 0;
+function sendState(dt) {
+  sendTimer -= dt;
+  if (sendTimer > 0 || !lobby.connected || player.state.mode === 'title') return;
+  sendTimer = 0.125;
+  const s = myState();
+  const key = s.join(',');
+  if (key === lastSent) return;
+  lastSent = key;
+  lobby.send({ t: 's', s });
+}
 
 function interact(it) {
   sfx.click();
@@ -293,7 +364,6 @@ input.on('Escape', () => {
   if (panels.open) return panels.close();
   if (player.state.mode === 'sit') standUp();
 });
-input.on('KeyR', () => { if (panels.open === 'results') panels.close(); });
 input.on('KeyM', () => app.setMuted(!sfx.muted));
 input.on('KeyP', () => {
   if (title.visible) return;
@@ -303,7 +373,7 @@ input.on('KeyV', () => { if (!panels.open && player.state.mode === 'walk') playe
 input.on('KeyE', () => {
   if (panels.open || title.visible) return;
   if (player.state.mode === 'sit') return standUp();
-  if (player.state.mode !== 'walk') return;
+  if (player.state.mode !== 'walk' || fishing.justLeft) return;
   const near = player.nearestInteractable();
   if (near) interact(near);
 });
@@ -333,7 +403,7 @@ async function checkServer() {
 async function refreshScoreboard() {
   try {
     const lb = await app.backend.leaderboard();
-    world.board.draw('TOP RUNS', (lb.top || []).slice(0, 7).map((r) => [r.name, fmt.short(r.best)]));
+    world.board.draw('TOP ANGLERS', (lb.top || []).slice(0, 7).map((r) => [r.name, fmt.short(r.caught)]));
   } catch { /* offline */ }
 }
 
@@ -379,9 +449,11 @@ function frame(now) {
 
   world.update(t, dt);
   player.update(dt, t);
-  // the fight runs on real time (capped after a tab switch) so slow devices aren't penalised
-  // against the lantern, which always burns in real time
+  // the fight runs on real time (capped after a tab switch), so a slow device doesn't drag out
+  // every fight
   fishing.update(Math.min(0.25, raw), t);
+  remotes.update(dt, camera, player.state.mode !== 'title');
+  sendState(raw);
   if (shakeAmt > 0.001) {
     camera.position.x += (Math.random() - 0.5) * shakeAmt;
     camera.position.y += (Math.random() - 0.5) * shakeAmt;

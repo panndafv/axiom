@@ -54,7 +54,7 @@ export function createTitle(app) {
     const pool = app.poolInfo;
     items = [
       ['How to play', '', () => app.panels.howTo()],
-      ['Leaderboard', p?.best ? `BEST ${fmt.int(p.best)}` : '', () => app.panels.leaderboard()],
+      ['Leaderboard', p?.caught ? `✦${fmt.short(p.caught)} CAUGHT` : '', () => app.panels.leaderboard()],
       ['Catch log', `${found}/${SPECIES.length} SPECIES`, () => app.panels.catchLog()],
       ['Profile', p ? `✦${fmt.short(p.cash)} GOLD` : '', () => app.panels.profile()],
       ['Reward pool', pool ? fmt.sol(pool.availableLamports, 2) : '', () => app.panels.pool()],

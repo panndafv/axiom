@@ -52,12 +52,9 @@ export function createRemoteBackend(token) {
     token,
     me: () => call('GET', '/api/me'),
     holding: (force = false) => call('GET', `/api/holding${force ? '?force=1' : ''}`),
-    startRun: () => call('POST', '/api/run/start', {}),
-    cast: (runId) => call('POST', '/api/run/cast', { runId }),
-    land: (runId, castId) => call('POST', '/api/run/land', { runId, castId }),
-    lose: (runId, castId, reason) => call('POST', '/api/run/lose', { runId, castId, reason }),
-    bank: (runId) => call('POST', '/api/run/bank', { runId }),
-    endRun: (runId) => call('POST', '/api/run/end', { runId }),
+    cast: () => call('POST', '/api/fish/cast', {}),
+    land: (castId) => call('POST', '/api/fish/land', { castId }),
+    lose: (castId, reason) => call('POST', '/api/fish/lose', { castId, reason }),
     sell: (fishIds) => call('POST', '/api/shop/sell', { fishIds }),
     buy: (kind, id) => call('POST', '/api/shop/buy', { kind, id }),
     equip: (kind, id) => call('POST', '/api/shop/equip', { kind, id }),
@@ -115,12 +112,9 @@ export function createLocalBackend() {
     kind: 'guest',
     me: wrap(() => ({ holding: null })),
     holding: async () => ({ holding: null }),
-    startRun: wrap((now) => ({ run: E.startRun(p, now) })),
-    cast: wrap((now, runId) => E.cast(p, runId, now)),
-    land: wrap((now, runId, castId) => E.land(p, runId, castId, now)),
-    lose: wrap((now, runId, castId, reason) => E.lose(p, runId, castId, reason, now)),
-    bank: wrap((now, runId) => E.bank(p, runId, now)),
-    endRun: wrap((now, runId) => ({ results: E.endRun(p, runId, now) })),
+    cast: wrap((now) => E.cast(p, now)),
+    land: wrap((now, castId) => E.land(p, castId, now)),
+    lose: wrap((now, castId, reason) => E.lose(p, castId, reason, now)),
     sell: wrap((now, ids) => E.sell(p, ids)),
     buy: wrap((now, kind, id) => E.buy(p, kind, id)),
     equip: wrap((now, kind, id) => E.equip(p, kind, id)),
@@ -132,7 +126,7 @@ export function createLocalBackend() {
       try {
         return await publicApi.leaderboard();
       } catch {
-        return { top: p.best ? [{ name: 'you (guest)', best: p.best, landed: p.landed }] : [], offline: true };
+        return { top: p.caught ? [{ name: 'you (guest)', caught: p.caught, landed: p.landed }] : [], offline: true };
       }
     },
     logout: async () => {},

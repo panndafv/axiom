@@ -21,18 +21,19 @@ export function createHud(app) {
   const luckChip = chip('luck', '🍀', 'LUCK', () => app.panels.shop('bait'));
   const goldChip = chip('gold', '✦', 'GOLD', () => app.panels.shop('rods'));
   const bagChip = chip('bag', '🎒', 'BACKPACK', () => app.panels.backpack());
-  const topBar = h('div.topbar', luckChip.el, goldChip.el, bagChip.el);
-  let onLine = 0; // fish on the stringer during a run, not yet in the backpack
+  const lobbyChip = chip('lobby', '👥', 'LOBBY', () => {});
+  lobbyChip.el.style.display = 'none';
+  const topBar = h('div.topbar', luckChip.el, goldChip.el, bagChip.el, lobbyChip.el);
 
   function renderTop() {
     const p = app.profile;
     if (!p) return;
     luckChip.v.textContent = `${p.luck}`;
     goldChip.v.textContent = fmt.int(p.cash);
-    bagChip.v.textContent = `${p.storage.length}/${GAME.storageMax}${onLine ? ` +${onLine}` : ''}`;
-    bagChip.el.classList.toggle('full', p.storage.length + onLine >= GAME.storageMax);
+    bagChip.v.textContent = `${p.storage.length}/${GAME.storageMax}`;
+    bagChip.el.classList.toggle('full', p.storage.length >= GAME.storageMax);
     bagChip.el.title = p.storage.length >= GAME.storageMax
-      ? 'Backpack full: sell at the fish rack, or banking will sell your cheapest fish'
+      ? 'Backpack full: sell fish at the fish rack to keep fishing'
       : 'Your backpack. Sell fish at the fish rack.';
   }
 
@@ -69,7 +70,7 @@ export function createHud(app) {
     const p = app.profile;
     if (!p) return;
     renderTop();
-    best.textContent = `🏆 BEST RUN ${fmt.int(p.best)}`;
+    best.textContent = `🐟 ${fmt.int(p.landed)} FISH · ✦${fmt.int(p.caught)} CAUGHT`;
     const gate = CONFIG.earnGate;
     unlockNum.textContent = fmt.int(Math.min(p.lifetimeCash, gate));
     unlockOf.textContent = ` / ${fmt.int(gate)}`;
@@ -147,14 +148,10 @@ export function createHud(app) {
   }
 
   // ------------------------------------------------------------------ fishing HUD
-  const oilBar = h('i');
-  const oilSecs = h('span.secs');
-  const oil = h('div.oil', '🏮', h('div.bar', oilBar), oilSecs);
-  const strList = h('div');
-  const strMult = h('span.mult');
-  const strScore = h('div.score');
-  const strLuck = h('div.luck');
-  const stringer = h('div.stringer', h('div.head', h('span', 'STRINGER'), strMult), strList, strScore, strLuck);
+  const sesList = h('div');
+  const sesTotal = h('div.score');
+  const sesLuck = h('div.luck');
+  const sessionCard = h('div.stringer', h('div.head', h('span', 'THIS SESSION')), sesList, sesTotal, sesLuck);
   const prompt = h('div.prompt');
   const last = h('div.last-catch');
   const progBar = h('i');
@@ -167,7 +164,7 @@ export function createHud(app) {
     h('div.bar.tension', tenBar),
   );
   reel.style.display = 'none';
-  const fishRoot = h('div.fish-hud.passive', oil, stringer, last, prompt, reel);
+  const fishRoot = h('div.fish-hud.passive', sessionCard, last, prompt, reel);
   fishRoot.style.display = 'none';
   ui.append(fishRoot);
 
@@ -175,51 +172,40 @@ export function createHud(app) {
   let bannerEl = null;
 
   const fishing = {
-    show() { fishRoot.style.display = ''; hint.textContent = 'click / [Space] to cast · HOLD to reel · (B) bank · (E) stop fishing'; },
+    show() { fishRoot.style.display = ''; hint.textContent = 'click / [Space] to cast · HOLD to reel · (E) stop fishing'; },
     hide() { fishRoot.style.display = 'none'; reel.style.display = 'none'; },
-    setOil(msLeft, total) {
-      if (msLeft === null) {
-        oilBar.style.width = '100%';
-        oilSecs.textContent = `${Math.round(total / 1000)}s`;
-        oil.classList.remove('low');
-        return;
-      }
-      oilBar.style.width = `${(msLeft / total) * 100}%`;
-      oilSecs.textContent = `${Math.ceil(msLeft / 1000)}s`;
-      oil.classList.toggle('low', msLeft < 15000);
-    },
-    setRun(run, profile) {
-      onLine = run?.stringer?.length || 0;
-      renderTop();
-      strList.replaceChildren();
-      const fish = run?.stringer || [];
-      if (!fish.length) strList.append(h('div', { style: { color: 'var(--muted)' } }, run ? 'nothing yet — cast!' : 'cast to light the lantern'));
-      for (const f of fish.slice(-8)) {
+    setSession(fish, profile) {
+      sesList.replaceChildren();
+      if (!fish.length) sesList.append(h('div', { style: { color: 'var(--muted)' } }, 'nothing yet. cast!'));
+      for (const f of fish.slice(-6)) {
         const sp = SPECIES_BY_ID[f.sp];
-        strList.append(h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${f.value}`)));
+        sesList.append(h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${f.value}`)));
       }
-      if (fish.length > 8) strList.append(h('div', { style: { color: 'var(--muted)' } }, `+${fish.length - 8} more`));
-      const base = fish.reduce((s, f) => s + f.value, 0);
-      strMult.textContent = `×${(run?.mult || 1).toFixed(2)}`;
-      strScore.replaceChildren(h('span', `run ${fmt.int(run?.score || 0)}`), h('span.cash', fish.length ? `bank ✦${Math.round(base * run.mult)}` : ''));
+      if (fish.length > 6) sesList.append(h('div', { style: { color: 'var(--muted)' } }, `+${fish.length - 6} more`));
+      const total = fish.reduce((sum, f) => sum + f.value, 0);
+      sesTotal.replaceChildren(h('span', `${fish.length} fish`), h('span.cash', `✦${fmt.int(total)}`));
       const b = profile?.bait && BAITS_BY_ID[profile.bait];
-      strLuck.textContent = `🍀 luck ${profile?.luck ?? 0}${b ? ` (${b.name} ×${profile.baits[profile.bait]})` : ''}`;
+      sesLuck.textContent = `🍀 luck ${profile?.luck ?? 0}${b ? ` (${b.name} ×${profile.baits[profile.bait]})` : ''}`;
     },
-    setPrompt(state, { mult, stringer: n }) {
+    setPrompt(state, { full }) {
       prompt.replaceChildren();
       const add = (...els) => prompt.append(...els.filter(Boolean));
-      if (state === 'idle') {
+      if (state === 'idle' && full) {
+        add(
+          h('div.big', '🎒 BACKPACK FULL'),
+          h('div.line', 'sell fish at the fish rack to keep fishing'),
+          touch() ? null : h('div.small', '(E) stop fishing'),
+        );
+      } else if (state === 'idle') {
         add(
           h('div.big', 'CAST A LINE'),
           touch() ? h('div.line', 'tap to cast out') : h('div.line', 'click / ', h('span.kbd', 'Space'), ' to cast out'),
-          n ? h('div.line', touch() ? 'tap BANK' : ['press ', h('span.kbd', 'B')], ` to bank your haul (×${mult.toFixed(2)})`) : null,
           touch() ? null : h('div.small', '(E) stop fishing'),
         );
       } else if (state === 'casting' || state === 'waiting') {
         add(
           h('div.big', 'WAITING FOR A BITE…'),
-          n ? h('div.line', h('span.kbd', 'B'), ` bank your haul (×${mult.toFixed(2)})`) : null,
-          h('div.small', '(E) stop fishing'),
+          touch() ? null : h('div.small', '(E) stop fishing'),
         );
       } else if (state === 'fighting') {
         prompt.append(touch()
@@ -284,8 +270,30 @@ export function createHud(app) {
     },
   };
 
+  // "someone landed something rare" across the lobby
+  let shoutEl = null;
+  function shout(name, sp, kg) {
+    const r = RARITIES[sp.rarity];
+    shoutEl?.remove();
+    shoutEl = h('div.shout.passive', { style: { '--rc': r.color } },
+      fishIcon(sp, 44),
+      h('div', h('b', name), ' landed a ', h('b', { style: { color: r.color } }, `${r.label.toUpperCase()} ${sp.name}`), ` (${fmt.kg(kg)})`));
+    ui.append(shoutEl);
+    const el = shoutEl;
+    setTimeout(() => { el.style.opacity = '0'; }, 4500);
+    setTimeout(() => el.remove(), 5000);
+  }
+
   return {
     fishing,
+    shout,
+    setLobby(info) {
+      lobbyChip.el.style.display = info ? '' : 'none';
+      if (info) {
+        lobbyChip.v.textContent = `#${info.lobby} · ${info.count}/${info.size}`;
+        lobbyChip.el.title = `Lobby ${info.lobby}: ${info.count} of ${info.size} players`;
+      }
+    },
     render: renderDeck,
     setMode(mode) {
       root.style.display = mode === 'walk' || mode === 'fish' || mode === 'sit' ? '' : 'none';
