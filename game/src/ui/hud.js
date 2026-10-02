@@ -86,8 +86,11 @@ export function createHud(app) {
 
   // ------------------------------------------------------------------ lobby chat (top left)
   // Enter to type, Enter to send, Esc to stop typing. The server allows one line every 5 seconds.
+  // Each line fades away 15 seconds after it appears, and the box never holds more than a few
+  // lines, so it never grows down the screen.
   const CHAT_COOLDOWN_MS = 5_000;
-  const CHAT_KEEP = 40;
+  const CHAT_LIFE_MS = 15_000;
+  const chatMaxLines = () => (window.innerWidth <= 640 ? 4 : 6);
   const chatLog = h('div.chat-log');
   const chatInput = h('input.chat-input', { maxlength: 120, placeholder: 'Press Enter to chat', enterkeyhint: 'send' });
   const chatBox = h('div.chat', chatLog, chatInput);
@@ -103,13 +106,16 @@ export function createHud(app) {
     clearTimeout(chatTimer);
     if (chatOnline && wait > 0) chatTimer = setTimeout(chatPlaceholder, Math.min(wait, 250));
   }
-  function chatLine(m) {
+  function chatLine(m, lifeMs = CHAT_LIFE_MS) {
     // text only, never HTML
     const el = h(`div.cl${m.mine ? '.mine' : ''}${m.system ? '.system' : ''}`,
       m.name ? h(`b.nm${m.wallet ? '.wallet' : ''}`, `${m.name}: `) : null, m.text);
     chatLog.append(el);
-    while (chatLog.childElementCount > CHAT_KEEP) chatLog.firstElementChild.remove();
-    chatLog.scrollTop = chatLog.scrollHeight;
+    while (chatLog.childElementCount > chatMaxLines()) chatLog.firstElementChild.remove();
+    setTimeout(() => {
+      el.classList.add('fade');
+      setTimeout(() => el.remove(), 600);
+    }, Math.max(0, lifeMs));
   }
   chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -130,7 +136,8 @@ export function createHud(app) {
     reset(lines = []) {
       chatLog.replaceChildren();
       chatOnline = true;
-      for (const m of lines) chatLine(m);
+      // only what is still young enough to be on screen, for the time it has left
+      for (const m of lines) if ((m.ageMs ?? 0) < CHAT_LIFE_MS) chatLine(m, CHAT_LIFE_MS - (m.ageMs ?? 0));
       chatPlaceholder();
     },
     add(m) { chatLine(m); },

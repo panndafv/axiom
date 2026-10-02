@@ -9,7 +9,7 @@
 //                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, name, outfit, rod, halo},
 //                  {t:'shout', name, sp, kg} (someone in your lobby landed something rare),
 //                  {t:'chat', id, name, wallet, text, at}, {t:'chat_no', why} (your line was refused)
-//                  welcome also carries `chat`: the lobby's last few lines.
+//                  welcome also carries `chat`: the lobby's last few lines, each with ageMs.
 
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
@@ -107,7 +107,8 @@ function join(ws, hello) {
   p.name = cleanName(hello.name) || p.tag;
   p.lobby = pickLobby();
   const lobby = lobbies.get(p.lobby);
-  send(p, { t: 'welcome', id: p.id, lobby: p.lobby, size: LOBBY_SIZE, players: [...lobby.values()].map(publicPlayer), chat: chatLogs.get(p.lobby) || [] });
+  send(p, { t: 'welcome', id: p.id, lobby: p.lobby, size: LOBBY_SIZE, players: [...lobby.values()].map(publicPlayer),
+    chat: (chatLogs.get(p.lobby) || []).map((m) => ({ ...m, ageMs: Date.now() - m.at })) });
   broadcast(lobby, { t: 'join', p: publicPlayer(p) });
   lobby.set(p.id, p);
   return p;
