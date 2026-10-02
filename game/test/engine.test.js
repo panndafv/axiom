@@ -269,3 +269,52 @@ test('the Beacon rod cannot be bought, only found once at the top of the lightho
   assert.throws(() => engine.find(p, 'tidecaster'), { code: 'not_found' });
   assert.throws(() => engine.find(p, 'constructor'), { code: 'not_found' });
 });
+
+test('every 10th cast is golden (2x luck) and every 50th rainbow (5x luck)', () => {
+  const p = engine.newProfile('tester', T0);
+  const kinds = [];
+  let at = T0;
+  for (let i = 1; i <= 50; i++) {
+    at += 60_000;
+    const c = engine.cast(p, at, zeroRng);
+    kinds.push(c.special);
+    engine.lose(p, c.castId, 'cancel', at + 1);
+    at = p.lineReadyAt;
+  }
+  assert.equal(p.casts, 50);
+  assert.deepEqual(kinds.map((k, i) => (k ? `${i + 1}:${k}` : null)).filter(Boolean),
+    ['10:golden', '20:golden', '30:golden', '40:golden', '50:rainbow']);
+
+  // luck is multiplied, with at least +15 per step so it still counts at 0 luck
+  assert.equal(rules.boostedLuck(25, 2), 50);
+  assert.equal(rules.boostedLuck(25, 5), 125);
+  assert.equal(rules.boostedLuck(0, 2), 15);
+  assert.equal(rules.boostedLuck(0, 5), 60);
+  assert.equal(rules.boostedLuck(30, 1), 30);
+  p.rods.push('bamboo');
+  p.rod = 'bamboo'; // +8 luck
+  p.casts = 9;
+  assert.equal(engine.cast(p, at + 60_000, zeroRng).luck, rules.boostedLuck(8, 2), 'the 10th cast rolls with doubled luck');
+});
+
+test('halos: bought once, worn, taken off, and add to the gold fish sell for', () => {
+  const p = engine.newProfile('tester', T0);
+  p.cash = 10_000;
+  engine.buy(p, 'halo', 'golden');
+  assert.equal(p.halo, 'golden');
+  assert.deepEqual(p.halos, ['golden']);
+  assert.equal(p.cash, 10_000 - rules.HALOS_BY_ID.golden.price);
+  assert.throws(() => engine.buy(p, 'halo', 'golden'), { code: 'owned' });
+  assert.throws(() => engine.equip(p, 'halo', 'prism'), { code: 'not_owned' });
+
+  const cashBefore = p.cash;
+  const a = addFish(p, 'paper_perch', 100);
+  assert.equal(engine.sell(p, [a.id]).cash, 120, '+20% with the golden halo');
+  assert.equal(p.cash, cashBefore + 120);
+
+  engine.equip(p, 'halo', null);
+  assert.equal(p.halo, null);
+  const b = addFish(p, 'paper_perch', 100);
+  assert.equal(engine.sell(p, [b.id]).cash, 100);
+  assert.equal(engine.publicProfile(p).halos.length, 1);
+});

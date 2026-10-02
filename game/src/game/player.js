@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createCharacter } from '../scene/characters.js';
 import { DECK_Y } from '../scene/world.js';
-import { RODS_BY_ID, lookColors } from '../../shared/rules.js';
+import { RODS_BY_ID, HALOS_BY_ID, lookColors } from '../../shared/rules.js';
 
 // The player's angler plus the camera that follows it.
 // Camera modes: 'title' (slow orbit), 'walk' (third/first person), 'fish' (behind the angler at a
@@ -48,6 +48,10 @@ export function createPlayer(scene, camera, world, input, settings) {
 
   function setOutfit(id, look) {
     char.setOutfit(lookColors(id, look));
+  }
+
+  function setHalo(id) {
+    char.setHalo(HALOS_BY_ID[id] || null);
   }
 
   function setRod(id) {
@@ -239,6 +243,7 @@ export function createPlayer(scene, camera, world, input, settings) {
     climb,
     setOutfit,
     setRod,
+    setHalo,
     cycleView,
     nearestInteractable,
     update(dt, t) {

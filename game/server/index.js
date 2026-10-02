@@ -46,10 +46,11 @@ function needFishIds(body) {
 
 // Validates { kind, id } for the shop. Only own keys count: otherwise an id like "constructor"
 // would find a function on Object.prototype and the engine would treat it as an item.
-function shopItem(body, { allowNoBait = false } = {}) {
+// allowNone: equipping null takes the bait or halo off.
+function shopItem(body, { allowNone = false } = {}) {
   const { kind, id } = body;
-  if (typeof kind !== 'string' || !Object.hasOwn(SHOP, kind)) throw badRequest('kind must be rod, bait or outfit.');
-  if (allowNoBait && kind === 'bait' && id === null) return { kind, id };
+  if (typeof kind !== 'string' || !Object.hasOwn(SHOP, kind)) throw badRequest('kind must be rod, bait, outfit or halo.');
+  if (allowNone && (kind === 'bait' || kind === 'halo') && id === null) return { kind, id };
   if (typeof id !== 'string' || !Object.hasOwn(SHOP[kind], id)) throw new GameError('not_found', 'That is not in the shop.');
   return { kind, id };
 }
@@ -173,7 +174,7 @@ const routes = {
   }),
 
   'POST /api/shop/equip': user((wallet, { body }) => {
-    const { kind, id } = shopItem(body, { allowNoBait: true });
+    const { kind, id } = shopItem(body, { allowNone: true });
     return play(wallet, (p) => {
       engine.equip(p, kind, id);
       return {};

@@ -81,6 +81,11 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
 
 - **Gold** (✦) comes from selling fish. It buys rods, bait and outfits in the tackle shop. Gold has
   no value outside the game.
+- **Golden and rainbow casts.** Every 10th cast is golden (2× luck) and every 50th rainbow (5×
+  luck), with at least +15 luck per step so it still counts at 0 luck. Counters at the bottom of
+  the screen show the next one. The server counts casts, so it cannot be faked.
+- **Halos** (shop, ✦600 to ✦18,000) add 5% to 35% to the gold fish sell for, and float over the
+  angler's head for everyone in the lobby.
 - **Luck** comes from the rod (+0 to +40 in the shop) plus bait (+6 to +45, used up one per cast).
   It multiplies the weight of every tier above common by `1 + luck/100 × 1.5 × tier`. At 40 luck a
   mythic is 4× as likely. Better rods also take a little more tension, so the rare fish they bring

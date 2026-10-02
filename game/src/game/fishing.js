@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME, RARITIES, RODS_BY_ID, SPECIES_BY_ID, reelParams } from '../../shared/rules.js';
+import { GAME, RARITIES, RODS_BY_ID, SPECIES_BY_ID, SPECIAL_CASTS, reelParams } from '../../shared/rules.js';
 import { createFish } from '../scene/fish3d.js';
 import { rodTipWorld } from '../scene/characters.js';
 import { sfx } from './audio.js';
@@ -217,6 +217,11 @@ export function createFishing({ scene, player, app, hud, input }) {
         luck: res.luck,
         params: reelParams({ difficulty: res.fight.difficulty }, RODS_BY_ID[app.profile.rod] || RODS_BY_ID.driftwood),
       };
+      const special = SPECIAL_CASTS.find((sc) => sc.kind === res.special);
+      if (special) {
+        hud.fishing.banner(`${special.label} · ${special.boost}× luck`, special.kind);
+        sfx.land(special.kind === 'rainbow' ? 5 : 3);
+      }
     } catch (err) {
       clearCast();
       if (state !== 'off') state = 'idle';

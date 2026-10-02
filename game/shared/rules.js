@@ -114,11 +114,47 @@ export function lookColors(outfitId, look) {
   };
 }
 
+// Halos float over your head and add a share on top of the gold you get for every fish you sell.
+// The prism halo shifts through every colour.
+export const HALOS = [
+  { id: 'brass',  name: 'Brass Halo',  price: 600,    gold: 0.05, color: '#c9953b', blurb: 'A humble glow.' },
+  { id: 'silver', name: 'Silver Halo', price: 2_000,  gold: 0.1,  color: '#dfe6ee', blurb: 'Polished every morning.' },
+  { id: 'golden', name: 'Golden Halo', price: 6_000,  gold: 0.2,  color: '#ffc93c', blurb: 'The fish rack loves you.' },
+  { id: 'prism',  name: 'Prism Halo',  price: 18_000, gold: 0.35, color: '#ff7ad9', rainbow: true, blurb: 'Every colour at once.' },
+];
+
+export const HALOS_BY_ID = Object.fromEntries(HALOS.map((h) => [h.id, h]));
+
+// What a fish sells for with this halo on.
+export function sellPrice(value, haloId) {
+  return Math.round(value * (1 + (HALOS_BY_ID[haloId]?.gold || 0)));
+}
+
 export const SHOP = {
   rod: RODS_BY_ID,
   bait: BAITS_BY_ID,
   outfit: OUTFITS_BY_ID,
+  halo: HALOS_BY_ID,
 };
+
+// Every 10th cast is a golden cast and every 50th a rainbow cast: on those your luck is
+// multiplied by `boost` (see boostedLuck). The 50th is rainbow, not golden.
+export const SPECIAL_CASTS = [
+  { kind: 'rainbow', every: 50, boost: 5, label: 'Rainbow cast' },
+  { kind: 'golden', every: 10, boost: 2, label: 'Golden cast' },
+];
+
+// The nth cast (counting from 1): its special cast, or null for an ordinary one.
+export function specialCast(n) {
+  return SPECIAL_CASTS.find((s) => n > 0 && n % s.every === 0) || null;
+}
+
+// Luck on a golden (x2) or rainbow (x5) cast. With little or no luck, multiplying would do almost
+// nothing, so it is always at least 15 luck more per step: 0 luck becomes 15 / 60.
+export function boostedLuck(luck, boost = 1) {
+  if (boost <= 1) return luck;
+  return Math.max(luck * boost, luck + 15 * (boost - 1));
+}
 
 // ---------------------------------------------------------------------------------------------
 // Reel physics. The client simulates the fight with these numbers; the server only checks that

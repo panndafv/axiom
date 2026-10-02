@@ -5,6 +5,7 @@
 import {
   GAME, RARITIES, RODS_BY_ID, BAITS_BY_ID, SHOP, SPECIES_BY_ID,
   rollSpecies, rollKg, fishValue, biteDelayMs, minReelMs, speciesPoolPct, speciesPayout, cryptoRng, randomLook,
+  specialCast, boostedLuck, sellPrice,
 } from './rules.js';
 
 export class GameError extends Error {
@@ -38,6 +39,9 @@ export function newProfile(id, now = Date.now()) {
     bait: null,       // bait on the hook, used up one per cast
     outfits: ['deckhand'],
     outfit: 'deckhand',
+    halos: [],
+    halo: null,       // halo worn, adds to the gold fish sell for
+    casts: 0,         // every 10th cast is golden and every 50th rainbow (see SPECIAL_CASTS)
     look: randomLook(), // { shirt, hair } colour picks, random per player
     storage: [],      // the backpack, GAME.storageMax fish
     nextFishId: 1,
@@ -76,11 +80,13 @@ export function cast(p, now = Date.now(), rng = cryptoRng) {
   }
   const rod = RODS_BY_ID[p.rod];
   const bait = useBait(p);
-  const luck = currentLuck(p, bait);
+  p.casts += 1;
+  const special = specialCast(p.casts);
+  const luck = boostedLuck(currentLuck(p, bait), special?.boost);
   const sp = rollSpecies(luck, rng);
   const kg = rollKg(sp, rng);
   const bite = biteDelayMs(luck, rng);
-  p.cast = { id: randomId(), sp: sp.id, kg, rod: rod.id, luck, castAt: now, biteAt: now + bite };
+  p.cast = { id: randomId(), sp: sp.id, kg, rod: rod.id, luck, special: special?.kind || null, castAt: now, biteAt: now + bite };
   // The species stays on the server until it is landed; the client only gets what it needs to
   // run the fight.
   const [lo, hi] = sp.kg;
@@ -88,6 +94,7 @@ export function cast(p, now = Date.now(), rng = cryptoRng) {
     castId: p.cast.id,
     biteInMs: bite,
     luck,
+    special: special?.kind || null, // 'golden' / 'rainbow' / null
     bait: bait?.id || null,
     fight: { difficulty: sp.difficulty, size: hi > lo ? (kg - lo) / (hi - lo) : 0.5 },
   };
@@ -161,7 +168,7 @@ export function sell(p, fishIds) {
   if (!Array.isArray(fishIds) || !fishIds.length) throw new GameError('empty', 'Pick some fish to sell.');
   const sold = takeFish(p, fishIds);
   if (!sold.length) throw new GameError('not_found', 'Those fish are not in your cooler.');
-  const cash = sold.reduce((s, f) => s + f.value, 0);
+  const cash = sold.reduce((s, f) => s + sellPrice(f.value, p.halo), 0);
   p.cash += cash;
   p.lifetimeCash += cash;
   p.sold += sold.length;
@@ -176,6 +183,7 @@ export function buy(p, kind, id) {
   if (!item) throw new GameError('not_found', 'That is not in the shop.');
   if (kind === 'rod' && p.rods.includes(id)) throw new GameError('owned', 'You already own that rod.');
   if (kind === 'outfit' && p.outfits.includes(id)) throw new GameError('owned', 'You already own that outfit.');
+  if (kind === 'halo' && p.halos.includes(id)) throw new GameError('owned', 'You already own that halo.');
   if (item.price === null) throw new GameError('not_for_sale', 'That one is not for sale. It is hidden somewhere on the pier.');
   if (p.cash < item.price) throw new GameError('broke', `You need ${item.price - p.cash} more gold.`);
   p.cash -= item.price;
@@ -185,6 +193,9 @@ export function buy(p, kind, id) {
   } else if (kind === 'outfit') {
     p.outfits.push(id);
     p.outfit = id;
+  } else if (kind === 'halo') {
+    p.halos.push(id);
+    p.halo = id;
   } else {
     p.baits[id] = (p.baits[id] || 0) + item.pack;
     if (!p.bait) p.bait = id;
@@ -214,6 +225,10 @@ export function equip(p, kind, id) {
   } else if (kind === 'bait') {
     if (id !== null && !(Object.hasOwn(p.baits, id) && p.baits[id] > 0)) throw new GameError('not_owned', 'You are out of that bait.');
     p.bait = id;
+  } else if (kind === 'halo') {
+    // null takes it off
+    if (id !== null && !(p.halos.includes(id) && Object.hasOwn(SHOP.halo, id))) throw new GameError('not_owned', 'You do not own that halo.');
+    p.halo = id;
   } else {
     throw new GameError('not_found', 'Unknown item type.');
   }
@@ -288,6 +303,9 @@ export function publicProfile(p, now = Date.now()) {
     bait: p.bait,
     outfits: p.outfits,
     outfit: p.outfit,
+    halos: p.halos,
+    halo: p.halo,
+    casts: p.casts,
     look: p.look,
     luck: currentLuck(p),
     storage: p.storage,

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createCharacter, rodTipWorld } from './characters.js';
 import { makeBobber } from '../game/fishing.js';
 import { DECK_Y, TOP_Y } from './world.js';
-import { RODS_BY_ID, lookColors } from '../../shared/rules.js';
+import { RODS_BY_ID, HALOS_BY_ID, lookColors } from '../../shared/rules.js';
 
 // Everyone else in the lobby. Their positions arrive ~8 times a second, so each one glides toward
 // its latest position and turns smoothly instead of jumping.
@@ -38,6 +38,7 @@ export function createRemotes(scene, labelsLayer) {
   function add(info) {
     if (players.has(info.id)) remove(info.id);
     const char = createCharacter({ ...lookColors(info.outfit, info.look), rod: RODS_BY_ID[info.rod], shadows: false });
+    char.setHalo(HALOS_BY_ID[info.halo] || null);
     scene.add(char.root);
     const tag = document.createElement('div');
     tag.className = `world-label player-tag${info.wallet ? ' wallet' : ''}`;
@@ -79,11 +80,12 @@ export function createRemotes(scene, labelsLayer) {
       const p = players.get(id);
       if (p) applyState(p, s);
     },
-    setLook(id, outfitId, rodId, look) {
+    setLook(id, outfitId, rodId, look, haloId) {
       const p = players.get(id);
       if (!p) return;
       p.char.setOutfit(lookColors(outfitId, look));
       p.char.setRod(RODS_BY_ID[rodId] || RODS_BY_ID.driftwood);
+      p.char.setHalo(HALOS_BY_ID[haloId] || null);
       if (p.mode === 'fish') p.char.rodInHand(); else p.char.rodOnBack();
     },
     clear() {

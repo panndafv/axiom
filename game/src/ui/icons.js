@@ -153,3 +153,36 @@ export function outfitIcon(outfit, size = 80) {
       <rect x="31" y="74" width="16" height="22" fill="${c.pants}"/><rect x="53" y="74" width="16" height="22" fill="${c.pants}"/>
     </svg>`);
 }
+
+const RAINBOW_STOPS = ['#ff5f6d', '#ffb347', '#ffe66d', '#62e08f', '#4fb6ff', '#b884ff'];
+
+// A halo seen from a little above: a chunky ring like the one floating over the angler.
+export function haloIcon(halo, size = 72) {
+  const id = `hg${halo.id}${size}`;
+  const fill = halo.rainbow ? `url(#${id})` : halo.color;
+  const defs = halo.rainbow
+    ? `<defs><linearGradient id="${id}" x1="0" x2="1">${RAINBOW_STOPS.map((c, i) => `<stop offset="${i / (RAINBOW_STOPS.length - 1)}" stop-color="${c}"/>`).join('')}</linearGradient></defs>`
+    : '';
+  return svg(`
+    <svg width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
+      ${defs}
+      <ellipse cx="50" cy="56" rx="38" ry="18" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="13"/>
+      <ellipse cx="50" cy="52" rx="38" ry="18" fill="none" stroke="${fill}" stroke-width="12"/>
+      <ellipse cx="50" cy="47" rx="34" ry="14" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="3"/>
+    </svg>`);
+}
+
+// The golden and rainbow rods on the special-cast counters at the bottom of the screen.
+export function specialRodIcon(kind, { size = 56, lit = false } = {}) {
+  const id = `sr${kind}${size}`;
+  const stops = kind === 'rainbow' ? RAINBOW_STOPS : ['#fff3b0', '#ffc93c', '#e09a1e'];
+  return svg(`
+    <svg width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true" class="${lit ? 'lit' : ''}">
+      <defs><linearGradient id="${id}" x1="0" y1="1" x2="1" y2="0">${stops.map((c, i) => `<stop offset="${i / (stops.length - 1)}" stop-color="${c}"/>`).join('')}</linearGradient></defs>
+      <line x1="22" y1="90" x2="82" y2="8" stroke="#2a1810" stroke-width="10" stroke-linecap="round"/>
+      <line x1="22" y1="90" x2="82" y2="8" stroke="url(#${id})" stroke-width="6" stroke-linecap="round"/>
+      <line x1="20" y1="93" x2="34" y2="74" stroke="#5a3a26" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="30" cy="80" r="6" fill="url(#${id})" stroke="#2a1810" stroke-width="2"/>
+      <line x1="82" y1="8" x2="86" y2="56" stroke="#e9e2d4" stroke-width="1"/>
+    </svg>`);
+}

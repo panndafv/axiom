@@ -465,7 +465,7 @@ a { color: var(--teal); }
 .reel {
   position: absolute;
   left: 50%;
-  bottom: 70px;
+  bottom: 96px;
   transform: translateX(-50%);
   width: min(420px, calc(100% - 32px));
   padding: 12px 16px 14px;
@@ -524,6 +524,72 @@ a { color: var(--teal); }
 .banner.snap { color: var(--red); }
 .banner.bank { color: var(--gold); }
 .banner.info { color: #fff4e2; }
+.banner.golden { color: #ffd34d; }
+.banner.rainbow {
+  background: linear-gradient(90deg, #ff5f6d, #ffb347, #ffe66d, #62e08f, #4fb6ff, #b884ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  filter: drop-shadow(0 2px 0 #2a1810) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35));
+}
+
+/* ------------------------------------------------------------------ gear (top right) */
+
+.gear { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; pointer-events: auto; }
+.gear-slot {
+  width: 74px;
+  padding: 5px 4px 6px;
+  border-radius: 8px;
+  background: rgba(30, 22, 18, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  color: #f2e6d6;
+}
+.gear-slot:hover { background: rgba(58, 42, 33, 0.95); }
+.gear-slot .ic { height: 40px; display: flex; align-items: center; justify-content: center; }
+.gear-slot .nm { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gear-slot .sub { font-size: 10px; color: var(--green); white-space: nowrap; }
+.gear-slot.empty { opacity: 0.6; border-style: dashed; }
+.gear-slot.empty .sub { color: var(--muted); }
+.gear-slot .plus { font-size: 26px; color: var(--muted); line-height: 1; }
+
+/* ------------------------------------------------------------------ golden / rainbow casts */
+
+.special-casts {
+  position: absolute;
+  left: 50%;
+  bottom: 38px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 22px;
+  pointer-events: none;
+}
+.special-casts .sc { display: flex; align-items: center; gap: 2px; opacity: 0.88; }
+.special-casts .n {
+  font-family: var(--display);
+  font-size: 26px;
+  color: #fff7ea;
+  -webkit-text-stroke: 2px #2a1810;
+  paint-order: stroke fill;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.special-casts .sc.golden .n { color: #ffe08a; }
+.special-casts .sc.ready { opacity: 1; animation: sc-pulse 1s ease-in-out infinite; }
+.special-casts .sc.golden.ready svg { filter: drop-shadow(0 0 8px #ffc93c); }
+.special-casts .sc.rainbow.ready svg { filter: drop-shadow(0 0 8px #ff7ad9) hue-rotate(0deg); }
+@keyframes sc-pulse { 50% { transform: scale(1.08); } }
+
+.top-chip .boost { font-size: 11px; font-weight: 800; }
+.top-chip .boost.golden { color: #ffd34d; }
+.top-chip .boost.rainbow { color: #ff7ad9; }
+
+.hud-card { transition: opacity 0.8s; }
+.hud-card.gone { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.8s, visibility 0s 0.8s; }
 @keyframes banner {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(0.8); }
   15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
@@ -588,7 +654,7 @@ a { color: var(--teal); }
 
 body.touch .bottom-hint, body.touch .key-hints { display: none; }
 @media (max-width: 640px) {
-  .hud { width: min(250px, calc(100% - 20px)); }
+  .hud { width: min(250px, calc(100% - 196px)); }
   .hud-card { padding: 8px 10px; }
   .contract-bar { bottom: 58px; }
   .reel { bottom: 130px; }
@@ -629,6 +695,14 @@ body.touch .bottom-hint, body.touch .key-hints { display: none; }
 .top-chip.bag.full .v { color: var(--red); }
 
 @media (max-width: 640px) {
+  .gear { top: 52px; right: 8px; gap: 4px; }
+  .gear-slot { width: 54px; padding: 4px 2px; }
+  .gear-slot .ic { height: 30px; }
+  .gear-slot .ic svg { width: 30px; height: 30px; }
+  .gear-slot .nm { display: none; }
+  .special-casts { bottom: 12px; gap: 12px; }
+  .special-casts .n { font-size: 18px; }
+  .special-casts svg { width: 32px; height: 32px; }
   .topbar { top: 8px; left: 8px; right: 8px; transform: none; justify-content: center; }
   .top-chip { padding: 6px 9px; }
   .top-chip .k { display: none; }

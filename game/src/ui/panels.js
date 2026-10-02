@@ -1,9 +1,9 @@
 import { h, fmt } from './dom.js';
-import { fishIcon, rodIcon, baitIcon, outfitIcon } from './icons.js';
+import { fishIcon, rodIcon, baitIcon, outfitIcon, haloIcon } from './icons.js';
 import { CONFIG } from '../config.js';
 import {
-  GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, BAITS, OUTFITS, rarityOdds, speciesOdds,
-  speciesPoolPct, fishValue,
+  GAME, RARITIES, RARITY_IDS, SPECIES, SPECIES_BY_ID, RODS, BAITS, OUTFITS, HALOS, HALOS_BY_ID, rarityOdds, speciesOdds,
+  speciesPoolPct, fishValue, sellPrice,
 } from '../../shared/rules.js';
 import { shortAddress, isMobile, phantomDeepLink } from '../net/wallet.js';
 import { sfx } from '../game/audio.js';
@@ -86,6 +86,10 @@ export function createPanels(app) {
         h('p', `Every fish you land goes straight into your 🎒 backpack, which holds ${GAME.storageMax}. Sell them for gold at the fish rack, or hold the rare ones and cash them in at the reward pool. When the backpack is full, sell some before you cast again.`),
         h('h3', 'Luck'),
         h('p', 'Rods and bait add 🍀 luck. More luck means rarer fish bite more often. Buy them at the ⚓ shop with the gold you make selling fish.'),
+        h('p', 'Every 10th cast is a ', h('b', { style: { color: '#ffd34d' } }, 'GOLDEN CAST'), ' with 2× luck, and every 50th a ',
+          h('b', { style: { color: '#ff7ad9' } }, 'RAINBOW CAST'), ' with 5× luck. The counters at the bottom of the screen show how close the next one is.'),
+        h('h3', 'Halos'),
+        h('p', 'Halos float over your head and add 5% to 35% to the gold every fish sells for. Find them in the halos tab at the ⚓ shop. What you have on (rod, bait, halo) shows at the top right.'),
         h('h3', 'Lobbies'),
         h('p', 'Up to 25 anglers share a pier. When someone in your lobby lands an Epic or rarer fish, everyone hears about it.'),
         h('h3', 'The reward pool'),
@@ -150,7 +154,8 @@ export function createPanels(app) {
     });
     const status = poolStatus();
     const pool = app.poolInfo;
-    const total = pr.storage.reduce((s, f) => s + f.value, 0);
+    const total = pr.storage.reduce((s, f) => s + sellPrice(f.value, pr.halo), 0);
+    const halo = HALOS_BY_ID[pr.halo];
 
     const rows = sorted.map(([sid, fish]) => {
       const sp = SPECIES_BY_ID[sid];
@@ -161,7 +166,7 @@ export function createPanels(app) {
       return h('div.row',
         rarityTag(sp.rarity),
         h('div.fish-name', fishIcon(sp, 40), h('span', `${sp.name} ×${fish.length}`)),
-        h('span.val', `✦${fish[0].value}`),
+        h('span.val', `✦${sellPrice(fish[0].value, pr.halo)}`),
         h('div', { style: { display: 'flex', gap: '6px' } },
           h('button.pill-btn', { on: { click: () => act(() => app.call('sell', [fish[0].id])).then((x) => x && sfx.coins()) } }, 'sell 1'),
           h('button.pill-btn.dark', { disabled: fish.length < 2, on: { click: () => act(() => app.call('sell', fish.map((f) => f.id))).then((x) => x && sfx.coins()) } }, 'sell all'),
@@ -180,6 +185,7 @@ export function createPanels(app) {
     return [
       h('div.stat-line', h('span.cash', `✦ ${fmt.int(pr.cash)} gold`), h('span.sol', `▲ ${fmt.sol(pr.claimable)} claimable`)),
       h('p.note', status.why),
+      halo ? h('p.note', { style: { color: 'var(--gold)' } }, `${halo.name}: +${Math.round(halo.gold * 100)}% gold on every fish you sell (included in these prices)`) : null,
       rows.length ? h('div.rows', rows) : h('div.empty', 'Your backpack is empty. Catch some fish first.'),
       h('div.row-foot',
         h('span', `🎒 ${pr.storage.length} / ${GAME.storageMax} in your backpack`),
@@ -277,7 +283,7 @@ export function createPanels(app) {
 
   function renderShop() {
     const pr = p();
-    const tabs = h('div.tabs', ['rods', 'bait', 'outfits'].map((t) =>
+    const tabs = h('div.tabs', ['rods', 'bait', 'halos', 'outfits'].map((t) =>
       h(`button.tab${shopTab === t ? '.active' : ''}`, { on: { click: () => { shopTab = t; sfx.click(); rerender(); } } }, t.toUpperCase())));
     let cards;
     if (shopTab === 'rods') {
@@ -313,6 +319,21 @@ export function createPanels(app) {
           ),
         );
       });
+    } else if (shopTab === 'halos') {
+      cards = HALOS.map((hl) => {
+        const owned = pr.halos?.includes(hl.id);
+        const on = pr.halo === hl.id;
+        return h(`div.card${on ? '.equipped' : ''}`,
+          haloIcon(hl, 80),
+          h('div.name', hl.name),
+          h('div.blurb', hl.blurb),
+          h('div.luck', { style: { color: 'var(--gold)' } }, `✦ +${Math.round(hl.gold * 100)}% gold from fish`),
+          h('div.foot', on
+            ? h('button.pill-btn.ghost', { on: { click: () => act(() => app.call('equip', 'halo', null)) } }, 'take off')
+            : owned ? h('button.pill-btn.ghost', { on: { click: () => act(() => app.call('equip', 'halo', hl.id)) } }, 'wear')
+              : priceButton(hl.price, () => act(() => app.call('buy', 'halo', hl.id), `${hl.name} on!`).then((x) => x && sfx.coins()))),
+        );
+      });
     } else {
       cards = OUTFITS.map((o) => {
         const owned = pr.outfits.includes(o.id);
@@ -330,7 +351,8 @@ export function createPanels(app) {
     const note = shopTab === 'rods'
       ? 'Luck shifts the odds toward rarer fish. Better rods also hold a little more tension.'
       : shopTab === 'bait' ? 'Bait goes on the hook and is used up one per cast. Its luck stacks with your rod.'
-        : 'Outfits are cosmetic.';
+        : shopTab === 'halos' ? 'A halo floats over your head and adds to the gold every fish sells for. Everyone on the pier can see it.'
+          : 'Outfits are cosmetic.';
     return [tabs, h('p.note', note), h('div.cards', cards)];
   }
 

@@ -117,14 +117,16 @@ app.setMuted = (m) => {
   toast(m ? 'Sound off (M)' : 'Sound on (M)');
 };
 
-let lastRod = null, lastOutfit = null;
+let lastRod = null, lastOutfit = null, lastHalo;
 function setProfile(p) {
   app.profile = p;
   const outfitKey = `${p.outfit}:${p.look?.shirt}:${p.look?.hair}`;
-  const looksChanged = p.rod !== lastRod || outfitKey !== lastOutfit;
+  const halo = p.halo || null;
+  const looksChanged = p.rod !== lastRod || outfitKey !== lastOutfit || halo !== lastHalo;
   if (p.rod !== lastRod) { player.setRod(p.rod); lastRod = p.rod; }
   if (outfitKey !== lastOutfit) { player.setOutfit(p.outfit, p.look); lastOutfit = outfitKey; }
-  if (looksChanged) lobby.send({ t: 'look', outfit: p.outfit, rod: p.rod, look: p.look });
+  if (halo !== lastHalo) { player.setHalo(halo); lastHalo = halo; }
+  if (looksChanged) lobby.send({ t: 'look', outfit: p.outfit, rod: p.rod, halo, look: p.look });
   world.setRackRods(p.rods);
   world.setBeaconFound(p.rods.includes('beacon'));
   hud.render();
@@ -287,7 +289,7 @@ const lobby = createLobbyClient({
   join(msg) { remotes.add(msg.p); showLobby(); },
   leave(msg) { remotes.remove(msg.id); showLobby(); },
   u(msg) { for (const [id, ...s] of msg.p) if (id !== myLobbyId) remotes.setState(id, s); },
-  look(msg) { remotes.setLook(msg.id, msg.outfit, msg.rod, msg.look); },
+  look(msg) { remotes.setLook(msg.id, msg.outfit, msg.rod, msg.look, msg.halo); },
   shout(msg) {
     const sp = SPECIES_BY_ID[msg.sp];
     if (!sp) return;
@@ -319,6 +321,7 @@ function joinLobby() {
     token: app.mode === 'wallet' ? app.session?.token : undefined,
     outfit: app.profile?.outfit,
     rod: app.profile?.rod,
+    halo: app.profile?.halo || null,
     look: app.profile?.look,
     s: myState(),
   }));

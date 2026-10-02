@@ -72,9 +72,11 @@ test('players in a lobby see each other join, move, change rods and leave', asyn
   assert.deepEqual(update.p, [[welcomeB.id, 5.12, -3, 1.5, 1, 0.4, 10, -14]]);
 
   b.send({ t: 's', s: [9999, 0, 0, 0, 0] }); // off the map: ignored
-  b.send({ t: 'look', outfit: 'diver', rod: 'bamboo' });
+  b.send({ t: 'look', outfit: 'diver', rod: 'bamboo', halo: 'golden' });
   const look = await a.next('look');
-  assert.deepEqual([look.id, look.outfit, look.rod], [welcomeB.id, 'diver', 'bamboo']);
+  assert.deepEqual([look.id, look.outfit, look.rod, look.halo], [welcomeB.id, 'diver', 'bamboo', 'golden']);
+  b.send({ t: 'look', outfit: 'diver', rod: 'bamboo', halo: 'made-up' });
+  assert.equal((await a.next('look')).halo, null, 'unknown halos are dropped');
   assert.ok(Number.isInteger(look.look.shirt) && Number.isInteger(look.look.hair), 'everyone gets a shirt and hair colour');
 
   await b.close();

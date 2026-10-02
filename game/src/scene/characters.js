@@ -114,8 +114,29 @@ export function createCharacter({ shirt = '#1f6c75', pants = '#1e2a4b', hair = '
   }
   rodOnBack();
 
+  // Halo: a glowing ring over the head (see HALOS). def null takes it off.
+  let halo = null;
+  function setHalo(def) {
+    if (halo) {
+      head.remove(halo);
+      halo.geometry.dispose();
+      halo.material.dispose();
+      halo = null;
+    }
+    if (!def) return;
+    halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.34, 0.075, 6, 12),
+      new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.45, roughness: 0.4, flatShading: true }),
+    );
+    halo.userData.rainbow = !!def.rainbow;
+    halo.rotation.x = Math.PI / 2;
+    halo.position.y = 1.02;
+    head.add(halo);
+  }
+
   let phase = 0;
   let sit = 0;
+  let clock = 0;
   // speed: 0..1 walk amount. pose: 'walk' | 'fish' | 'sit'
   function animate(dt, speed, pose = 'walk', reel = 0) {
     phase += dt * (6 + speed * 5) * (speed > 0.05 ? 1 : 0.3);
@@ -134,10 +155,20 @@ export function createCharacter({ shirt = '#1f6c75', pants = '#1e2a4b', hair = '
       armR.rotation.set(swing * 0.8 * (1 - sit) - sit * 0.4, 0, -0.05);
     }
     head.rotation.y = Math.sin(phase * 0.21) * 0.05;
+    if (halo) {
+      clock += dt;
+      halo.position.y = 1.02 + Math.sin(clock * 2.2) * 0.04;
+      halo.rotation.z = clock * 0.8;
+      if (halo.userData.rainbow) {
+        halo.material.color.setHSL((clock * 0.15) % 1, 1, 0.5);
+        halo.material.emissive.copy(halo.material.color);
+      }
+    }
   }
 
   function dispose() {
     for (const m of [legMeshL, legMeshR, armMeshL, armMeshR, torso, headMesh]) m.geometry.dispose();
+    setHalo(null);
     rodObj?.traverse((o) => o.geometry?.dispose());
   }
 
@@ -145,7 +176,7 @@ export function createCharacter({ shirt = '#1f6c75', pants = '#1e2a4b', hair = '
     root, head, armR, rodSlot,
     get rod() { return rodObj; },
     get holdingRod() { return rodInHandNow; },
-    setRod, setOutfit, rodOnBack, rodInHand, animate, dispose,
+    setRod, setOutfit, setHalo, rodOnBack, rodInHand, animate, dispose,
   };
 }
 

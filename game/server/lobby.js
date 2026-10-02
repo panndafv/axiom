@@ -2,17 +2,19 @@
 // other walk and fish. Positions are cosmetic: everything that matters (fish, gold, the pool) still
 // goes through the HTTP API, so nothing here needs to be trusted.
 //
-// Client → server: {t:'hello', token?, guest?, outfit, rod, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
+// Client → server: {t:'hello', token?, guest?, outfit, rod, halo, s?}, {t:'s', s:[x,z,facing,mode,speed,bx?,bz?]},
 //                  (mode: 0 walking, 1 fishing, 2 sitting, 3 up the lighthouse)
-//                  {t:'look', outfit, rod}
+//                  {t:'look', outfit, rod, halo}
 // Server → client: {t:'welcome', id, lobby, size, players:[...]}, {t:'join', p}, {t:'leave', id},
-//                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, outfit, rod},
+//                  {t:'u', p:[[id, ...s], ...]} (batched ~8 times a second), {t:'look', id, outfit, rod, halo},
 //                  {t:'shout', name, sp, kg} (someone in your lobby landed something rare)
 
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { walletForToken } from './auth.js';
-import { RODS_BY_ID, OUTFITS_BY_ID, SPECIES_BY_ID, RARITIES, isLook, randomLook } from '../shared/rules.js';
+import { RODS_BY_ID, OUTFITS_BY_ID, HALOS_BY_ID, SPECIES_BY_ID, RARITIES, isLook, randomLook } from '../shared/rules.js';
+
+const haloOf = (id) => (Object.hasOwn(HALOS_BY_ID, id) ? id : null);
 
 export const LOBBY_SIZE = 25;
 const TICK_MS = 125;
@@ -37,7 +39,7 @@ function cleanState(s) {
 const round = (n) => Math.round(n * 100) / 100;
 
 function publicPlayer(p) {
-  return { id: p.id, name: p.name, wallet: !!p.wallet, outfit: p.outfit, rod: p.rod, look: p.look, s: p.s };
+  return { id: p.id, name: p.name, wallet: !!p.wallet, outfit: p.outfit, rod: p.rod, halo: p.halo, look: p.look, s: p.s };
 }
 
 function send(p, msg) {
@@ -68,6 +70,7 @@ function join(ws, hello) {
     name: wallet ? short(wallet) : `guest-${guestTag || Math.floor(Math.random() * 9000 + 1000)}`,
     outfit: Object.hasOwn(OUTFITS_BY_ID, hello.outfit) ? hello.outfit : 'deckhand',
     rod: Object.hasOwn(RODS_BY_ID, hello.rod) ? hello.rod : 'driftwood',
+    halo: haloOf(hello.halo),
     look: isLook(hello.look) ? { shirt: hello.look.shirt, hair: hello.look.hair } : randomLook(),
     s: cleanState(hello.s) || [0, 3.5, Math.PI, 0, 0],
     dirty: false,
@@ -105,7 +108,8 @@ function onMessage(p, raw) {
     if (Object.hasOwn(OUTFITS_BY_ID, msg.outfit)) p.outfit = msg.outfit;
     if (Object.hasOwn(RODS_BY_ID, msg.rod)) p.rod = msg.rod;
     if (isLook(msg.look)) p.look = { shirt: msg.look.shirt, hair: msg.look.hair };
-    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, outfit: p.outfit, rod: p.rod, look: p.look }, p);
+    if ('halo' in msg) p.halo = haloOf(msg.halo);
+    broadcast(lobbies.get(p.lobby), { t: 'look', id: p.id, outfit: p.outfit, rod: p.rod, halo: p.halo, look: p.look }, p);
   }
 }
 

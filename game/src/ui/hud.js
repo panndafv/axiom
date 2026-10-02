@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { h, fmt } from './dom.js';
-import { fishIcon } from './icons.js';
+import { fishIcon, rodIcon, baitIcon, haloIcon, specialRodIcon } from './icons.js';
 import { CONFIG } from '../config.js';
-import { GAME, RARITIES, SPECIES_BY_ID, BAITS_BY_ID } from '../../shared/rules.js';
+import {
+  GAME, RARITIES, SPECIES_BY_ID, BAITS_BY_ID, RODS_BY_ID, HALOS_BY_ID, SPECIAL_CASTS, specialCast, sellPrice,
+} from '../../shared/rules.js';
 import { shortAddress } from '../net/wallet.js';
 
 const tmp = new THREE.Vector3();
@@ -19,6 +21,8 @@ export function createHud(app) {
     return { el, v };
   };
   const luckChip = chip('luck', '🍀', 'LUCK', () => app.panels.shop('bait'));
+  const luckBoost = h('span.boost'); // ×2 / ×5 when the next cast is golden or rainbow
+  luckChip.el.append(luckBoost);
   const goldChip = chip('gold', '✦', 'GOLD', () => app.panels.shop('rods'));
   const bagChip = chip('bag', '🎒', 'BACKPACK', () => toggleBag());
   const bagMenu = h('div.bag-menu');
@@ -34,13 +38,13 @@ export function createHud(app) {
     if (!p || bagMenu.hidden) return;
     const worth = (f) => RARITIES[SPECIES_BY_ID[f.sp].rarity].order * 1e6 + f.value;
     const fish = [...p.storage].sort((a, b) => worth(b) - worth(a));
-    const total = fish.reduce((sum, f) => sum + f.value, 0);
+    const total = fish.reduce((sum, f) => sum + sellPrice(f.value, p.halo), 0);
     bagMenu.replaceChildren(
       h('div.head', h('span', 'BACKPACK'), h('span', `${fish.length}/${GAME.storageMax}`)),
       fish.length
         ? h('div.list', fish.map((f) => {
           const sp = SPECIES_BY_ID[f.sp];
-          return h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${f.value}`));
+          return h('div.fish', h('span', { style: { color: RARITIES[sp.rarity].color } }, sp.name), h('span.cash', `✦${sellPrice(f.value, p.halo)}`));
         }))
         : h('div.empty-note', 'empty. go catch something!'),
       h('div.total', h('span', `${fish.length} fish`), h('span.cash', `✦${fmt.int(total)}`)),
@@ -59,6 +63,12 @@ export function createHud(app) {
     const p = app.profile;
     if (!p) return;
     luckChip.v.textContent = `${p.luck}`;
+    const next = specialCast((p.casts || 0) + 1);
+    luckBoost.textContent = next ? `×${next.boost}` : '';
+    luckBoost.className = `boost ${next?.kind || ''}`;
+    luckChip.el.title = next ? `Your next cast is a ${next.label.toLowerCase()}: ${next.boost}× luck` : 'Luck from your rod and bait';
+    renderGear(p);
+    renderSpecials(p);
     goldChip.v.textContent = fmt.int(p.cash);
     bagChip.v.textContent = `${p.storage.length}/${GAME.storageMax}`;
     renderBag();
@@ -75,7 +85,6 @@ export function createHud(app) {
   const unlockBar = h('i');
   const sub = h('div.hud-sub', 'fish sold · sell fish at the rack to fill it');
   const status = h('div');
-  const bait = h('div.hud-bait');
   const deck = h('div.hud',
     h('div.hud-buttons',
       h('button.hud-btn', { on: { click: () => app.open('profile') } }, '👤 PROFILE (P)'),
@@ -86,14 +95,68 @@ export function createHud(app) {
       h('div.hud-unlock', 'POOL UNLOCK ', unlockNum, unlockOf),
       h('div.bar', unlockBar),
       sub,
-      bait,
       status,
     ),
   );
   const hint = h('div.bottom-hint.passive');
   const root = h('div.passive', { style: { position: 'absolute', inset: '0' } }, hint);
   deck.style.pointerEvents = 'auto';
-  root.append(deck, topBar);
+
+  // ------------------------------------------------------------------ gear (top right)
+  // What you have on: rod, bait and halo. Each opens the place to change it.
+  const gear = h('div.gear');
+  let gearKey = '';
+  function gearSlot(icon, name, sub, onClick, empty = false) {
+    return h(`button.gear-slot${empty ? '.empty' : ''}`, { title: `${name} · ${sub}`, on: { click: onClick } },
+      h('div.ic', icon), h('div.nm', name), h('div.sub', sub));
+  }
+  function renderGear(p) {
+    const rod = RODS_BY_ID[p.rod] || RODS_BY_ID.driftwood;
+    const bait = p.bait && p.baits?.[p.bait] > 0 ? BAITS_BY_ID[p.bait] : null;
+    const halo = HALOS_BY_ID[p.halo] || null;
+    const key = `${rod.id}|${bait?.id}|${bait ? p.baits[p.bait] : 0}|${halo?.id}`;
+    if (key === gearKey) return;
+    gearKey = key;
+    gear.replaceChildren(
+      gearSlot(rodIcon(rod, { size: 40 }), rod.name, `+${rod.luck} luck`, () => app.panels.rods()),
+      bait
+        ? gearSlot(baitIcon(bait, 36), bait.name, `+${bait.luck} · ×${p.baits[p.bait]}`, () => app.panels.shop('bait'))
+        : gearSlot(h('span.plus', '+'), 'No bait', 'shop', () => app.panels.shop('bait'), true),
+      halo
+        ? gearSlot(haloIcon(halo, 40), halo.name, `+${Math.round(halo.gold * 100)}% gold`, () => app.panels.shop('halos'))
+        : gearSlot(h('span.plus', '+'), 'No halo', 'shop', () => app.panels.shop('halos'), true),
+    );
+  }
+
+  // ------------------------------------------------------------------ golden / rainbow casts
+  // Counters along the bottom: which cast of 10 (golden) and of 50 (rainbow) comes next.
+  const specials = h('div.special-casts');
+  let specialsKey = '';
+  function renderSpecials(p) {
+    const n = (p.casts || 0) + 1;
+    if (String(n) === specialsKey) return;
+    specialsKey = String(n);
+    const next = specialCast(n);
+    specials.replaceChildren(...[...SPECIAL_CASTS].reverse().map((s) => {
+      const at = ((n - 1) % s.every) + 1;
+      return h(`div.sc.${s.kind}${next?.kind === s.kind ? '.ready' : ''}`,
+        { title: `Every ${s.every}th cast is a ${s.label.toLowerCase()}: ${s.boost}× luck` },
+        specialRodIcon(s.kind, { size: 44 }),
+        h('span.n', `${at}/${s.every}`));
+    }));
+  }
+
+  // The info card on the left only stays for the first few minutes of a session.
+  const CARD_MS = 5 * 60_000;
+  const card = deck.querySelector('.hud-card');
+  let cardTimer = null;
+  function startCardTimer() {
+    if (cardTimer) return;
+    card.classList.remove('gone');
+    cardTimer = setTimeout(() => card.classList.add('gone'), CARD_MS);
+  }
+
+  root.append(deck, topBar, gear, specials);
   root.style.display = 'none';
   ui.append(root);
 
@@ -107,8 +170,6 @@ export function createHud(app) {
     unlockNum.textContent = fmt.int(Math.min(sold, gate));
     unlockOf.textContent = ` / ${fmt.int(gate)} fish sold`;
     unlockBar.style.width = `${Math.min(100, (sold / Math.max(1, gate)) * 100)}%`;
-    const b = p.bait && BAITS_BY_ID[p.bait];
-    bait.textContent = b ? `🪱 ${b.name} on the hook · ${p.baits[p.bait]} casts · +${b.luck} luck` : '';
     status.className = '';
     if (app.mode === 'guest') {
       status.className = 'hud-warn';
@@ -264,7 +325,7 @@ export function createHud(app) {
         h('div',
           h('div.rar', { style: { color: r.color } }, r.label.toUpperCase(), isNew ? h('span.new', 'NEW') : null),
           h('div.nm', sp.name),
-          h('div.meta', `${fmt.kg(fish.kg)} · `, h('span.cash', `✦${fish.value}`)),
+          h('div.meta', `${fmt.kg(fish.kg)} · `, h('span.cash', `✦${sellPrice(fish.value, app.profile?.halo)}`)),
         ),
       );
       revealEl.style.setProperty('--rc', r.color);
@@ -309,6 +370,7 @@ export function createHud(app) {
     render: renderDeck,
     setMode(mode) {
       root.style.display = mode === 'walk' || mode === 'fish' || mode === 'sit' ? '' : 'none';
+      if (mode === 'walk') startCardTimer();
       deck.style.display = mode === 'fish' ? 'none' : '';
       if (mode === 'walk') hint.textContent = 'click to look · WASD walk · Shift run · walk to any edge + E to fish · E interact · V view · P profile';
       if (mode === 'sit') hint.textContent = '(E) stand up';
