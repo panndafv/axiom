@@ -442,7 +442,7 @@ export function createPanels(app) {
           isGuest() ? null : [
             h('h3', 'Reward pool'),
             h('div.check-list',
-              check(!!hold?.ok, hold?.dev ? `holding check off (dev mode)` : hold?.ok
+              check(!!hold?.ok, hold?.dev ? `holding check off (dev mode)` : hold?.test ? 'test wallet: holding check skipped' : hold?.ok
                 ? `holding ${fmt.int(hold.balance)} $${CONFIG.tokenSymbol} ≈ ${fmt.usd(hold.usd)}`
                 : hold?.error ? `couldn't check holdings: ${hold.error}` : `holding ${fmt.int(hold?.balance || 0)} $${CONFIG.tokenSymbol} ≈ ${fmt.usd(hold?.usd || 0)} — need $${CONFIG.minHoldUsd}`),
               check((pr.sold || 0) >= CONFIG.earnGate, `fish sold ${fmt.int(pr.sold || 0)} / ${fmt.int(CONFIG.earnGate)}`),
@@ -514,7 +514,7 @@ export function createPanels(app) {
             : [
               h('div.check-list',
                 check(true, `wallet ${shortAddress(app.session.wallet)}`),
-                check(!!app.holding?.ok, app.holding?.dev ? 'holding check off (dev mode)' : `holds ≥ $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}${app.holding ? ` (now ${fmt.usd(app.holding.usd || 0)})` : ''}`),
+                check(!!app.holding?.ok, app.holding?.dev ? 'holding check off (dev mode)' : app.holding?.test ? 'test wallet: holding check skipped' : `holds ≥ $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}${app.holding ? ` (now ${fmt.usd(app.holding.usd || 0)})` : ''}`),
                 check((pr.sold || 0) >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} fish sold (${fmt.int(pr.sold || 0)})`),
               ),
               h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.1)} of the pool.` : status.why),

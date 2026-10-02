@@ -36,13 +36,23 @@ export async function send(id) {
       return pool.publicPayout(id);
     }
     const { blockhash, lastValidBlockHeight } = await solana.latestBlockhash();
-    const { signature, wire } = buildTransfer({
-      secretKey: config.poolSecretKey,
-      to: row.wallet,
-      lamports: row.lamports,
-      blockhash,
-      priorityMicroLamports: config.priorityFeeMicroLamports,
-    });
+    let built;
+    try {
+      built = buildTransfer({
+        secretKey: config.poolSecretKey,
+        to: row.wallet,
+        lamports: row.lamports,
+        blockhash,
+        priorityMicroLamports: config.priorityFeeMicroLamports,
+      });
+    } catch (err) {
+      // never retried: the same payout would fail the same way
+      pool.fail(id, /itself/.test(err.message)
+        ? 'This is the reward pool wallet, so it cannot pay itself. Play with a different wallet.'
+        : `Could not make the payout: ${err.message}`);
+      return pool.publicPayout(id);
+    }
+    const { signature, wire } = built;
     if (!pool.markSent(id, signature, lastValidBlockHeight)) return pool.publicPayout(id);
     try {
       await solana.sendTransaction(wire);

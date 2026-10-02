@@ -136,6 +136,9 @@ export async function holding(wallet, { force = false } = {}) {
   if (config.dev) {
     return { ok: true, dev: true, balance: 0, priceUsd: 0, usd: 0, minUsd: config.minHoldUsd, checkedAt: now };
   }
+  if (config.testWallets.has(wallet)) {
+    return { ok: true, test: true, balance: 0, priceUsd: 0, usd: 0, minUsd: config.minHoldUsd, checkedAt: now };
+  }
   const last = holdings.get(wallet);
   if (last) {
     const ttl = force ? FORCE_MIN_MS : last.error ? HOLDING_ERROR_TTL_MS : HOLDING_TTL_MS;

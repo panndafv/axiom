@@ -117,7 +117,7 @@ export function createHud(app) {
       const hold = app.holding;
       if (hold?.ok) {
         status.className = 'hud-ok';
-        status.textContent = `${shortAddress(app.session?.wallet)} · holding ${hold.dev ? '(dev mode)' : fmt.usd(hold.usd)} of $${CONFIG.tokenSymbol} ✓`;
+        status.textContent = `${shortAddress(app.session?.wallet)} · holding ${hold.dev ? '(dev mode)' : hold.test ? '(test wallet)' : fmt.usd(hold.usd)} of $${CONFIG.tokenSymbol} ✓`;
       } else {
         status.className = 'hud-warn';
         status.textContent = `${shortAddress(app.session?.wallet)} · hold $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} to cash in fish`;

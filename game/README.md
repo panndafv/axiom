@@ -40,6 +40,10 @@ with hot reload on :5173 and proxies `/api` to the server. `npm test` runs the t
 
 With `TOKEN_MINT` empty the server runs in **dev mode**: every wallet passes the holding check.
 
+**Testing real cash-ins before launch:** set `TOKEN_MINT` (the token does not need to exist yet),
+`TEST_WALLETS` to your own wallet address, and `HIDE_MINT=1` so the address stays off the title
+screen. Only the test wallets pass the holding check. Delete both at launch.
+
 ## How fishing works
 
 Walk to any edge of the pier and press E when it says FISH HERE. Fish as long as you like and press

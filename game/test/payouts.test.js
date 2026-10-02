@@ -119,8 +119,7 @@ async function api(method, pathname, { body, token } = {}) {
   return { status: res.status, body: await res.json() };
 }
 
-async function signIn() {
-  const kp = nacl.sign.keyPair();
+async function signIn(kp = nacl.sign.keyPair()) {
   const wallet = bs58.encode(kp.publicKey);
   const { body: { message } } = await api('GET', `/api/auth/nonce?wallet=${wallet}`);
   const signature = bs58.encode(nacl.sign.detached(new TextEncoder().encode(message), kp.secretKey));
@@ -224,6 +223,18 @@ test('a dropped transaction is only sent again once it can no longer land', asyn
   const [paid] = (await api('GET', '/api/payouts', { token: player.token })).body.payouts;
   assert.equal(paid.status, 'paid');
   assert.equal(paid.tx, second);
+});
+
+test('the pool wallet cannot cash in to itself, and the payout is not retried forever', async () => {
+  const self = await signIn(poolKp);
+  const fishId = giveFish(self.wallet, 'pump_puffer');
+  const before = chain.sent.length;
+  const ex = await api('POST', '/api/pool/exchange', { token: self.token, body: { fishIds: [fishId] } });
+  assert.equal(ex.status, 200);
+  assert.equal(ex.body.payout.status, 'failed');
+  assert.match(ex.body.payout.error, /cannot pay itself/);
+  await payer.check();
+  assert.equal(chain.sent.length, before);
 });
 
 test('the server refuses to pay real SOL when there is no token mint to check holdings against', () => {

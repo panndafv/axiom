@@ -92,7 +92,7 @@ const routes = {
   'GET /api/config': () => ({
     gameName: config.gameName,
     tokenSymbol: config.tokenSymbol,
-    tokenMint: config.tokenMint,
+    tokenMint: config.hideMint ? '' : config.tokenMint,
     minHoldUsd: config.minHoldUsd,
     earnGate: config.earnGate,
     poolMode: config.poolMode,
@@ -533,6 +533,8 @@ export async function startServer({ port = config.port, host = config.host, dbPa
     console.log(`${config.gameName} server at ${url} | pool mode: ${config.poolMode} | dev mode: ${devNote} | ${staticNote}`);
     if (seeded) console.log(`Test pool seeded with ${seeded / 1e9} fake SOL (SEED_POOL_SOL).`);
     if (config.autoPayouts) console.log(`Automatic payouts ON from ${config.poolWallet} (${config.solanaCluster}).`);
+    if (config.testWallets.size) console.warn(`TEST_WALLETS: ${config.testWallets.size} wallet(s) skip the holding check. Delete it at launch.`);
+    if (config.hideMint) console.log('HIDE_MINT: the token address is hidden from players.');
   }
   payer.start();
   server.on('close', () => payer.stop());

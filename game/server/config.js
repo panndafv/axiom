@@ -83,6 +83,23 @@ function secretKey(name) {
   return bytes;
 }
 
+// Comma- or space-separated wallet addresses.
+function addressList(name) {
+  const v = str(name, '');
+  const out = new Set();
+  for (const a of v.split(/[\s,]+/).filter(Boolean)) {
+    let bytes = null;
+    try {
+      bytes = bs58.decode(a);
+    } catch {
+      bytes = null;
+    }
+    if (bytes?.length !== 32) throw new Error(`${name} has an invalid Solana address: ${a}`);
+    out.add(a);
+  }
+  return out;
+}
+
 function fromGameDir(p) {
   return path.isAbsolute(p) ? p : path.resolve(GAME_DIR, p);
 }
@@ -112,6 +129,11 @@ export const config = {
   // Explorer links, and whether real SOL is at stake. Guessed from the RPC URL when not set.
   solanaCluster,
   minHoldUsd: num('MIN_HOLD_USD', 30),
+  // For testing cash-ins before the token trades: these wallets pass the holding check. Delete
+  // TEST_WALLETS at launch.
+  testWallets: addressList('TEST_WALLETS'),
+  // Keeps the mint off the title screen (and /api/config) until launch. The server still uses it.
+  hideMint: bool('HIDE_MINT', false),
   earnGate: num('EARN_GATE', 10), // fish a wallet must have sold before it can cash any in
   poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
   poolWallet,
