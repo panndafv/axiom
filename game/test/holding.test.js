@@ -34,7 +34,7 @@ before(async () => {
     DB_PATH: path.join(tmp, 'game.db'),
     STATIC_DIR: path.join(tmp, 'none'),
     TOKEN_MINT: mint,
-    TEST_WALLETS: `${testerWallet}, ${bs58.encode(nacl.sign.keyPair().publicKey)}`,
+    TEST_WALLETS: `"${testerWallet}", not-a-wallet ${bs58.encode(nacl.sign.keyPair().publicKey)}`, // quotes and junk are tolerated
     HIDE_MINT: '1',
     POOL_WALLET: '',
     POOL_SECRET_KEY: '',

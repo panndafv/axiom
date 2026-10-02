@@ -83,19 +83,22 @@ function secretKey(name) {
   return bytes;
 }
 
-// Comma- or space-separated wallet addresses.
+// Comma- or space-separated wallet addresses. Quotes are ignored; anything that is not an
+// address is skipped with a warning rather than stopping the server (on some hosts a server that
+// will not start just leaves the previous version running, which is easy to miss).
 function addressList(name) {
-  const v = str(name, '');
   const out = new Set();
-  for (const a of v.split(/[\s,]+/).filter(Boolean)) {
+  for (const raw of str(name, '').split(/[\s,;]+/)) {
+    const a = raw.replace(/^["'`]+|["'`]+$/g, '');
+    if (!a) continue;
     let bytes = null;
     try {
       bytes = bs58.decode(a);
     } catch {
       bytes = null;
     }
-    if (bytes?.length !== 32) throw new Error(`${name} has an invalid Solana address: ${a}`);
-    out.add(a);
+    if (bytes?.length === 32) out.add(a);
+    else console.warn(`${name}: "${a.slice(0, 60)}" is not a Solana wallet address, skipped`);
   }
   return out;
 }

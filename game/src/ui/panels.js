@@ -110,6 +110,7 @@ export function createPanels(app) {
   // ---------------------------------------------------------------------------------- fish rack
   function rack() {
     loadPayouts();
+    app.recheckHolding?.(); // so an out-of-date holding check never blocks a cash-in
     open('rack', {
       title: 'Fish rack',
       cls: 'wide',
@@ -118,12 +119,22 @@ export function createPanels(app) {
     });
   }
 
+  // ok: everything checks out. canTry: the cash-in buttons work. A failed holding check still
+  // lets you try, because the server checks again (the one we have may be out of date).
   function poolStatus() {
     const pr = p();
-    if (isGuest()) return { ok: false, why: 'connect a wallet on the title screen to cash in rare fish for SOL from the reward pool (RARE, EPIC, LEGENDARY, MYTHIC)' };
-    if (!app.holding?.ok) return { ok: false, why: `hold at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in this wallet to cash in rare fish` };
-    if ((pr.sold || 0) < CONFIG.earnGate) return { ok: false, why: `sell ${fmt.int(CONFIG.earnGate - (pr.sold || 0))} more fish at the rack to unlock cash-ins` };
-    return { ok: true, why: 'rare fish and up can be cashed in for a share of the reward pool' };
+    if (isGuest()) return { ok: false, canTry: false, why: 'connect a wallet on the title screen to cash in rare fish for SOL from the reward pool (RARE, EPIC, LEGENDARY, MYTHIC)' };
+    if ((pr.sold || 0) < CONFIG.earnGate) return { ok: false, canTry: false, why: `sell ${fmt.int(CONFIG.earnGate - (pr.sold || 0))} more fish at the rack to unlock cash-ins` };
+    const hold = app.holding;
+    if (!hold?.ok) {
+      const why = hold?.error
+        ? `couldn't check this wallet's $${CONFIG.tokenSymbol}: ${hold.error}`
+        : hold && Number.isFinite(hold.usd)
+          ? `this wallet holds ${fmt.usd(hold.usd)} of $${CONFIG.tokenSymbol}; $${CONFIG.minHoldUsd} is needed to cash in rare fish`
+          : `hold at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in this wallet to cash in rare fish`;
+      return { ok: false, canTry: true, why };
+    }
+    return { ok: true, canTry: true, why: 'rare fish and up can be cashed in for a share of the reward pool' };
   }
 
   function renderRack() {
@@ -157,7 +168,7 @@ export function createPanels(app) {
         ),
         canPool
           ? h('button.pill-btn.teal', {
-            disabled: !status.ok,
+            disabled: !status.canTry,
             title: status.ok ? 'Cash the biggest one in for SOL' : status.why,
             on: { click: () => cashIn([fish[fish.length - 1].id]) },
           }, `cash in ${estimate ? '≈' + fmt.sol(estimate, 3) : ''}`)
@@ -173,7 +184,7 @@ export function createPanels(app) {
       h('div.row-foot',
         h('span', `🎒 ${pr.storage.length} / ${GAME.storageMax} in your backpack`),
         h('div', { style: { display: 'flex', gap: '8px' } },
-          rareIds.length && status.ok ? h('button.pill-btn.teal', { on: { click: () => cashIn(rareIds) } }, `cash in all rare+ (${rareIds.length})`) : null,
+          rareIds.length && status.canTry ? h('button.pill-btn.teal', { on: { click: () => cashIn(rareIds) } }, `cash in all rare+ (${rareIds.length})`) : null,
           h('button.pill-btn', {
             disabled: !pr.storage.length,
             on: {
@@ -498,6 +509,7 @@ export function createPanels(app) {
   function pool() {
     loadPool();
     loadPayouts();
+    app.recheckHolding?.();
     open('pool', {
       title: '◆ Reward pool',
       cls: 'wide',
