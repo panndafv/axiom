@@ -575,3 +575,166 @@ export function seaStack() {
   }
   return g;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Portal to an area that is not open yet: a stone arch like the lighthouse plinth, a swirling
+// doorway in the portal's own colour, a hanging "coming soon" sign and a motif on top
+// ('egg' or 'starfish'). group.userData.update(t) animates it.
+
+function signTexture(name, color) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 80;
+  const g = c.getContext('2d');
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const draw = () => {
+    g.fillStyle = '#7a4c2a';
+    g.fillRect(0, 0, 256, 80);
+    g.fillStyle = '#8f5a32';
+    for (let y = 6; y < 80; y += 18) g.fillRect(0, y, 256, 8);
+    g.strokeStyle = '#4a2c18';
+    g.lineWidth = 6;
+    g.strokeRect(3, 3, 250, 74);
+    g.textAlign = 'center';
+    g.font = '34px "Lilita One", "Arial Black", sans-serif';
+    g.lineWidth = 5;
+    g.strokeStyle = '#2a1810';
+    g.strokeText(name, 128, 40);
+    g.fillStyle = color;
+    g.fillText(name, 128, 40);
+    g.font = '15px "Pixelify Sans", monospace';
+    g.fillStyle = '#fff1dc';
+    g.fillText('COMING SOON', 128, 64);
+    tex.needsUpdate = true;
+  };
+  draw();
+  document.fonts?.ready.then(draw); // the web fonts may load after the pier is built
+  return tex;
+}
+
+export function portal(color, name, motif = 'egg') {
+  const g = new THREE.Group();
+  const stone = '#8b8076', stoneLight = '#a39686';
+  const base = 0.14, archY = 2.14, R = 1.0, w = 0.78;
+
+  const step = box(2.6, base, 1.0, stoneLight);
+  step.position.y = base / 2;
+  g.add(step);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const b = box(0.44 - (i % 2) * 0.05, 0.5, 0.52 - (i % 2) * 0.05, i % 2 ? stone : stoneLight);
+      b.position.set(side * R, base + 0.25 + i * 0.5, 0);
+      b.rotation.y = (i % 2 ? 0.06 : -0.05) * side;
+      g.add(b);
+    }
+  }
+  // the arch: wedge blocks round a half circle, with a keystone in the portal's colour
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    if (i === 3) continue;
+    const a = ((i + 0.5) / n) * Math.PI;
+    const b = box(0.46, 0.42, 0.52, i % 2 ? stone : stoneLight);
+    b.position.set(Math.cos(a) * R, archY + Math.sin(a) * R, 0);
+    b.rotation.z = a - Math.PI / 2;
+    g.add(b);
+  }
+  const key = box(0.44, 0.42, 0.58, color, { emissive: color, emissiveIntensity: 0.45 });
+  key.position.set(0, archY + R, 0);
+  g.add(key);
+
+  // the swirling doorway (position-based shader, so no uv fiddling)
+  const shape = new THREE.Shape();
+  shape.moveTo(-w, base);
+  shape.lineTo(w, base);
+  shape.lineTo(w, archY);
+  shape.absarc(0, archY, w, 0, Math.PI, false);
+  shape.lineTo(-w, base);
+  const swirl = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    transparent: true,
+    uniforms: { time: { value: 0 }, color: { value: new THREE.Color(color) } },
+    vertexShader: /* glsl */`
+      varying vec2 vP;
+      void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */`
+      uniform float time; uniform vec3 color; varying vec2 vP;
+      void main() {
+        vec2 p = vP - vec2(0.0, 1.35);
+        float r = length(p * vec2(1.0, 0.72));
+        float a = atan(p.y, p.x);
+        float s1 = sin(a * 3.0 + r * 10.0 - time * 2.6) * 0.5 + 0.5;
+        float s2 = sin(a * 5.0 - r * 7.0 + time * 1.8) * 0.5 + 0.5;
+        float core = smoothstep(1.2, 0.0, r);
+        vec3 c = mix(color * 0.35, color * 1.4, s1 * 0.6 + s2 * 0.3) + vec3(core * 0.2);
+        gl_FragColor = vec4(c, 0.93);
+      }`,
+  });
+  const door = mesh(new THREE.ShapeGeometry(shape, 16), swirl, { cast: false, receive: false, isStatic: false });
+  g.add(door);
+
+  // hanging sign across the top of the doorway
+  const sign = mesh(new THREE.PlaneGeometry(1.3, 0.41),
+    new THREE.MeshBasicMaterial({ map: signTexture(name, color), toneMapped: false, side: THREE.DoubleSide }),
+    { cast: false, isStatic: false });
+  sign.position.set(0, archY + 0.32, 0.3);
+  g.add(sign);
+  for (const x of [-0.5, 0.5]) {
+    const rope = box(0.025, 0.42, 0.025, '#d8c8a4');
+    rope.position.set(x, archY + 0.72, 0.28);
+    g.add(rope);
+  }
+
+  // on top: a speckled egg, or a starfish
+  if (motif === 'egg') {
+    const egg = mesh(new THREE.SphereGeometry(0.2, 9, 7), mat('#f6ead2'));
+    egg.scale.set(1, 1.3, 1);
+    egg.position.set(0, archY + R + 0.46, 0);
+    g.add(egg);
+    for (const [x, y, z] of [[0.12, 0.08, 0.13], [-0.1, -0.04, 0.15], [0.04, 0.2, 0.15], [-0.15, 0.14, 0.05]]) {
+      const dot = mesh(new THREE.SphereGeometry(0.035, 5, 4), mat(color));
+      dot.position.set(x, archY + R + 0.46 + y, z);
+      g.add(dot);
+    }
+  } else {
+    const star = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const arm = mesh(new THREE.ConeGeometry(0.08, 0.3, 4), mat('#ff8a5c'));
+      const a = (i / 5) * Math.PI * 2;
+      arm.position.set(Math.sin(a) * 0.14, Math.cos(a) * 0.14, 0);
+      arm.rotation.z = -a;
+      star.add(arm);
+    }
+    star.position.set(0, archY + R + 0.45, 0.12);
+    g.add(star);
+  }
+
+  // glow and rising sparkles (not part of the baked pier: they move)
+  const c = new THREE.Color(color);
+  const rgb = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTexture(`rgba(${rgb},0.8)`, `rgba(${rgb},0)`), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.6,
+  }));
+  glow.scale.setScalar(3.4);
+  glow.position.set(0, 1.4, 0.35);
+  g.add(glow);
+  const sparkMat = new THREE.MeshBasicMaterial({ color: c.clone().lerp(new THREE.Color('#ffffff'), 0.5), toneMapped: false });
+  const sparks = Array.from({ length: 8 }, (_, i) => {
+    const m = mesh(new THREE.OctahedronGeometry(0.05), sparkMat, { cast: false, receive: false, isStatic: false });
+    m.userData.phase = i / 8;
+    g.add(m);
+    return m;
+  });
+
+  g.userData.update = (t) => {
+    swirl.uniforms.time.value = t;
+    glow.material.opacity = 0.5 + Math.sin(t * 2.2) * 0.12;
+    for (const m of sparks) {
+      const k = (t * 0.28 + m.userData.phase) % 1;
+      m.position.set(Math.sin(t * 0.9 + m.userData.phase * 9) * 0.55, base + 0.2 + k * 2.6, 0.18);
+      m.scale.setScalar(Math.sin(k * Math.PI) * 1.2);
+      m.rotation.y = t * 2;
+    }
+  };
+  return g;
+}

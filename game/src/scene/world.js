@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   mat, box, cyl, barrel, crate, lanternPost, lantern, palmTree, cooler, chest, buoy, bucket, bench, rowboat,
-  pilingBundle, scoreboard, fishRack, rodRack, rodMesh, lighthouse, rockPile, island, seaStack, glowSprite,
+  pilingBundle, scoreboard, fishRack, rodRack, rodMesh, lighthouse, rockPile, island, seaStack, glowSprite, portal,
 } from './props.js';
 import { woodTexture, boardTexture } from './textures.js';
 import { createCharacter } from './characters.js';
@@ -26,6 +26,13 @@ const DECKS = [
   { id: 'westDeck', x0: -29,   x1: -16,  z0: 3,    z1: 13,   dir: 'z' },
 ];
 const LIGHTHOUSE = { x: -22, z: -4, r: 5, towerR: 2.15 };
+
+// Portals on the main deck's south edge, beside the scoreboard. They lead nowhere yet.
+const PORTAL_Z = 5.75;
+const PORTALS = [
+  { id: 'eggs', title: 'EGGS', x: 3.9, color: '#ff7ad9', motif: 'egg' },
+  { id: 'lagoon', title: 'LAGOON', x: 6.95, color: '#36e3d0', motif: 'starfish' },
+];
 
 const PLANK_COLORS = ['#c98b52', '#b87a45', '#d49a5e', '#c2844b'].map((c) => new THREE.Color(c));
 
@@ -288,6 +295,8 @@ export function createWorld(scene) {
   const board = boardTexture();
   // scoreboard on the south edge by the floor lantern, facing back into the deck
   place(scoreboard(board.texture), 0.8, 6.35, { rot: Math.PI, r: 0.9 });
+  // two portals beside it to areas that are not open yet, facing back into the deck
+  const portals = PORTALS.map((pt) => place(portal(pt.color, pt.title, pt.motif), pt.x, PORTAL_Z, { rot: Math.PI, r: 1.15 }));
   const rackFish = ['bag_bass', 'candle_snapper', 'dock_sardine'].map((id) => createFish(SPECIES_BY_ID[id]));
   place(fishRack(rackFish), 4.9, -6.2, { r: 0.9 });
   const rods = place(rodRack(), 7.6, -6.35, { r: 0.8 });
@@ -382,6 +391,10 @@ export function createWorld(scene) {
     },
     { id: 'pool', kind: 'pool', pos: new THREE.Vector3(20.6, DECK_Y, -5.9), title: 'REWARD POOL', hint: '(E) cash in', color: '#ffd95c', icon: '◆', radius: 2.4 },
     { id: 'scores', kind: 'scores', pos: new THREE.Vector3(0.8, DECK_Y + 0.6, 6.35), title: 'SCORES', hint: '(E) view', color: '#ffd27a', icon: '✦', radius: 2.4 },
+    ...PORTALS.map((pt) => ({
+      id: pt.id, kind: 'portal', pos: new THREE.Vector3(pt.x, DECK_Y, PORTAL_Z - 0.6), title: pt.title, hint: 'coming soon',
+      color: pt.color, icon: '◎', radius: 1.9, labelY: 3.9,
+    })),
     { id: 'rack', kind: 'rack', pos: new THREE.Vector3(4.9, DECK_Y, -6.2), title: 'FISH RACK', hint: '(E) sell', color: '#ffb547', icon: '✦', radius: 2.2 },
     { id: 'rods', kind: 'rods', pos: new THREE.Vector3(7.6, DECK_Y, -6.35), title: 'RODS', hint: '(E) swap', color: '#4fe0cf', icon: '✦', radius: 2.2 },
     // the lighthouse door: no label until you are standing right at it
@@ -484,6 +497,7 @@ export function createWorld(scene) {
     setRackRods,
     update(t, dt) {
       lh.userData.beams.rotation.y = t * 0.45;
+      for (const pt of portals) pt.userData.update(t);
       beaconGlow.scale.setScalar(1.3 + Math.sin(t * 3) * 0.35);
       boat.position.y = 0.32 + Math.sin(t * 1.3) * 0.04;
       boat.rotation.z = Math.sin(t * 0.9) * 0.03;

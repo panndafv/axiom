@@ -350,6 +350,10 @@ function interact(it) {
     case 'rods': panels.rods(); break;
     case 'rack': panels.rack(); break;
     case 'scores': panels.leaderboard(); break;
+    case 'portal':
+      sfx.open();
+      toast(`${it.title} is coming soon. Keep an eye on the pier!`, 'good');
+      break;
     case 'pool': panels.pool(); break;
     case 'rest':
       player.setMode('sit', { spot: it });
