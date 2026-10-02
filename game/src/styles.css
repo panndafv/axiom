@@ -338,6 +338,20 @@ a { color: var(--teal); }
 .modal .muted { color: var(--muted); }
 .modal .hot { color: var(--red); font-weight: 700; }
 .modal .note { font-size: 12px; color: var(--muted); }
+.hold-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--gold) 55%, transparent);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.hold-note b { color: var(--gold); font-size: 15px; }
+.howto-list { margin: 4px 0 8px; padding-left: 20px; font-size: 14px; line-height: 1.55; }
 
 .pill-btn {
   padding: 5px 12px;
@@ -704,6 +718,21 @@ body.touch .bottom-hint, body.touch .key-hints { display: none; }
 .bag-menu .fish { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; font-weight: 600; }
 .bag-menu .total { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-weight: 700; }
 .bag-menu .note, .bag-menu .empty-note { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+/* Play and How to play: one block of two touching buttons, the same size, apart from the rest */
+.title-main {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+.title-main-slot { display: flex; flex-direction: column; }
+.title-main .btn-connect { width: 100%; border-radius: 8px 8px 0 0; box-shadow: none; }
+.title-main .menu-item.primary { margin: 0; border-radius: 0 0 8px 8px; border-top-color: rgba(255, 255, 255, 0.16); box-shadow: none; }
+.title-main .btn-connect:hover, .title-main .btn-connect.selected,
+.title-main .menu-item:hover, .title-main .menu-item.selected { transform: none; }
+.title-status { margin: -4px 0; }
 
 /* How to play matches the big Play button above it */
 .menu-item.primary {

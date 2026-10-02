@@ -10,9 +10,13 @@ export function createTitle(app) {
   const ui = document.getElementById('ui');
   let selected = 0;
   let items = [];
+  let buttons = [];
   const status = h('div.title-status');
   const connectLabel = h('span');
   const connect = h('button.btn-connect', { on: { click: () => { sfx.click(); app.connectWallet(); } } }, h('span.icon', '🔗'), connectLabel);
+  const howToSlot = h('div.title-main-slot');
+  // Play and How to play sit together as one block, with the smaller buttons set apart below.
+  const main = h('div.title-main', connect, howToSlot);
   const menu = h('div.menu');
   const guestBtn = h('button.btn-guest', { on: { click: () => { sfx.click(); app.playGuest(); } } }, 'play as guest');
   const note = h('div.title-note', 'wallet = your progress is saved · guest = saved on this device only');
@@ -25,7 +29,7 @@ export function createTitle(app) {
   const bar = h('div.contract-bar', sym, addr, copy, explorer, buy);
   const muteBtn = h('button.mute-btn', { title: 'Mute (M)', on: { click: () => app.setMuted(!sfx.muted) } });
   const root = h('div.title-screen',
-    logo, connect, status, menu, guestBtn, note,
+    logo, main, status, menu, guestBtn, note,
     h('div.key-hints.passive', '↑↓ select · Enter open · Esc close · M mute'),
     bar,
   );
@@ -51,28 +55,28 @@ export function createTitle(app) {
     muteBtn.textContent = sfx.muted ? '🔇' : '🔊';
 
     const found = p ? Object.keys(p.log || {}).length : 0;
-    const pool = app.poolInfo;
     items = [
       ['How to play', '', () => app.panels.howTo()],
       ['Leaderboard', p?.caught ? `✦${fmt.short(p.caught)} CAUGHT` : '', () => app.panels.leaderboard()],
       ['Catch log', `${found}/${SPECIES.length} SPECIES`, () => app.panels.catchLog()],
       ['Profile', p ? `✦${fmt.short(p.cash)} GOLD` : '', () => app.panels.profile()],
-      ['Reward pool', pool ? fmt.sol(pool.availableLamports, 2) : '', () => app.panels.pool()],
       ['Settings', '', () => app.panels.settings()],
       ['Credits', '', () => app.panels.credits()],
     ];
-    menu.replaceChildren(...items.map(([label, badge, fn], i) =>
+    buttons = items.map(([label, badge, fn], i) =>
       h(`button.menu-item${i === 0 ? '.primary' : ''}${i === selected ? '.selected' : ''}`, {
         on: {
           click: () => { selected = i; sfx.click(); fn(); render(); },
           mouseenter: () => { if (selected !== i) { selected = i; sfx.hover(); highlight(); } },
         },
-      }, h('span', label), h('span.badge', badge))));
+      }, h('span', label), h('span.badge', badge)));
+    howToSlot.replaceChildren(buttons[0]);
+    menu.replaceChildren(...buttons.slice(1));
     connect.classList.toggle('selected', selected === -1);
   }
 
   function highlight() {
-    [...menu.children].forEach((el, i) => el.classList.toggle('selected', i === selected));
+    buttons.forEach((el, i) => el.classList.toggle('selected', i === selected));
     connect.classList.toggle('selected', selected === -1);
   }
 

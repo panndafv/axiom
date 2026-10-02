@@ -68,10 +68,14 @@ export function createPanels(app) {
 
   // ---------------------------------------------------------------------------------- how to
   function howTo() {
+    loadPool();
     open('howto', {
       title: 'How to play',
       cls: 'teal',
       render: () => [
+        h('div.hold-note',
+          h('b', `You need at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in your wallet to play for the reward pool.`),
+          h('span', `Guests can fish for gold for free, but only wallets holding $${CONFIG.minHoldUsd} or more can cash fish in for SOL.`)),
         h('h3', 'Fishing'),
         h('p', 'Walk to any edge of the pier and press ', kbd('E'), ' when it says FISH HERE. Fish as long as you like and press ', kbd('E'), ' again to stop.'),
         h('p', h('b', 'CAST'), ' — ', kbd('Space'), ' or click. The bobber lands where it lands.'),
@@ -85,7 +89,14 @@ export function createPanels(app) {
         h('h3', 'Lobbies'),
         h('p', 'Up to 25 anglers share a pier. When someone in your lobby lands an Epic or rarer fish, everyone hears about it.'),
         h('h3', 'The reward pool'),
-        h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills a SOL pool. Rare, Epic, Legendary and Mythic fish can be cashed in for a fixed % of whatever is in the pool at that moment — the rarer the fish, the bigger the slice. To cash in you need a connected wallet holding at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}, and ${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish.`),
+        h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills a SOL pool. Rare, Epic, Legendary and Mythic fish can be cashed in at the ◆ reward pool chest on the pier for a fixed % of whatever is in the pool at that moment. The rarer the fish, the bigger the slice, and the pool never runs dry.`),
+        poolTable(),
+        h('p', 'To cash in you need:'),
+        h('ul.howto-list',
+          h('li', 'a connected wallet (guests can only sell fish for gold)'),
+          h('li', `at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in that wallet, checked live when you cash in`),
+          CONFIG.earnGate > 0 ? h('li', `${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish, so you have actually played first`) : null),
+        h('p', `Each wallet can take up to ${fmt.pct(app.poolInfo?.dailyCapPct ?? 0.1)} of the pool per day. Cash-ins add to your claimable SOL; claim it at the chest (min ${fmt.sol(GAME.minClaimLamports, 2)}) and it is sent to your wallet.`),
         h('h3', 'On the deck'),
         h('p', kbd('W'), kbd('A'), kbd('S'), kbd('D'), ' walk · mouse or arrows look (click to grab the mouse) · ', kbd('Shift'), ' run · ', kbd('E'),
           ' interact (pier edge, shop, rod rack, fish rack, scores, reward chest) · ', kbd('E'), ' stop fishing · ', kbd('V'), ' view · ', kbd('P'), ' profile · ', kbd('M'), ' mute · ⌂ HOME (top left) comes back to the title.'),
@@ -400,10 +411,41 @@ export function createPanels(app) {
   }
 
   // ---------------------------------------------------------------------------------- pool
+  // The pool's size and what each rarity cashes in for right now: in How to play and at the chest.
+  function loadPool() {
+    app.backend.pool().then((d) => { app.poolInfo = d; rerender(); }).catch(() => { app.poolInfo = null; rerender(); });
+  }
+
+  function poolTable() {
+    const info = app.poolInfo;
+    const luck = p()?.luck || 0;
+    const odds = rarityOdds(luck);
+    return [
+      h('div.stat-line', { style: { fontSize: '16px', margin: '10px 0' } },
+        h('span', 'in the pool ', h('span.sol', info ? fmt.sol(info.availableLamports, 3) : 'offline')),
+        info?.paidLamports ? h('span.muted', `paid out ${fmt.sol(info.paidLamports, 2)}`) : null),
+      h('table.table',
+        h('tr', h('th', 'rarity'), h('th', 'your odds'), h('th', 'pool share'), h('th', 'one fish now')),
+        RARITY_IDS.map((rid) => {
+          const r = RARITIES[rid];
+          return h('tr',
+            h('td', rarityTag(rid)),
+            h('td', `${(odds[rid] * 100).toFixed(odds[rid] < 0.01 ? 2 : 1)}%`),
+            h('td', r.poolPct ? fmt.pct(r.poolPct) : h('span.muted', 'cash only')),
+            h('td', r.poolPct ? h('span.sol', info ? fmt.sol(Math.floor(info.availableLamports * r.poolPct)) : '—') : h('span.cash', `✦${r.sell}`)));
+        }),
+        SPECIES.filter((sp) => sp.special).map((sp) => h('tr.special-row',
+          h('td', h('span.rar', { style: { color: RARITIES[sp.rarity].color } }, `★ ${sp.name}`)),
+          h('td', `${(speciesOdds(sp.id, luck) * 100).toFixed(3)}%`),
+          h('td', h('b', fmt.pct(sp.poolPct))),
+          h('td', h('span.sol', info ? fmt.sol(Math.floor(info.availableLamports * sp.poolPct)) : '—'))))),
+      h('p.note', '★ The Ghost Whale is the rarest fish in the game and pays the biggest share of the pool.'),
+    ];
+  }
+
   function pool() {
     let payouts = null;
-    const load = () => app.backend.pool().then((d) => { app.poolInfo = d; rerender(); }).catch(() => { app.poolInfo = null; rerender(); });
-    load();
+    loadPool();
     if (!isGuest()) app.backend.payouts().then((d) => { payouts = d.payouts; rerender(); }).catch(() => {});
     open('pool', {
       title: '◆ Reward pool',
@@ -411,29 +453,10 @@ export function createPanels(app) {
       render: () => {
         const pr = p();
         const info = app.poolInfo;
-        const odds = rarityOdds(pr.luck || 0);
         const status = poolStatus();
         return [
           h('p', `A share of the $${CONFIG.tokenSymbol} creator fees fills this pool. Each rare-or-better fish you cash in pays a fixed % of what is in the pool at that moment, so the pool never runs dry.`),
-          h('div.stat-line', { style: { fontSize: '16px', margin: '10px 0' } },
-            h('span', 'in the pool ', h('span.sol', info ? fmt.sol(info.availableLamports, 3) : 'offline')),
-            info?.paidLamports ? h('span.muted', `paid out ${fmt.sol(info.paidLamports, 2)}`) : null),
-          h('table.table',
-            h('tr', h('th', 'rarity'), h('th', 'your odds'), h('th', 'pool share'), h('th', 'one fish now')),
-            RARITY_IDS.map((rid) => {
-              const r = RARITIES[rid];
-              return h('tr',
-                h('td', rarityTag(rid)),
-                h('td', `${(odds[rid] * 100).toFixed(odds[rid] < 0.01 ? 2 : 1)}%`),
-                h('td', r.poolPct ? fmt.pct(r.poolPct) : h('span.muted', 'cash only')),
-                h('td', r.poolPct ? h('span.sol', info ? fmt.sol(Math.floor(info.availableLamports * r.poolPct)) : '—') : h('span.cash', `✦${r.sell}`)));
-            }),
-            SPECIES.filter((sp) => sp.special).map((sp) => h('tr.special-row',
-              h('td', h('span.rar', { style: { color: RARITIES[sp.rarity].color } }, `★ ${sp.name}`)),
-              h('td', `${(speciesOdds(sp.id, pr.luck || 0) * 100).toFixed(3)}%`),
-              h('td', h('b', fmt.pct(sp.poolPct))),
-              h('td', h('span.sol', info ? fmt.sol(Math.floor(info.availableLamports * sp.poolPct)) : '—'))))),
-          h('p.note', '★ The Ghost Whale is the rarest fish in the game and pays the biggest share of the pool.'),
+          poolTable(),
           h('h3', 'Your status'),
           isGuest()
             ? h('p', 'Guests can fish and sell for gold. ', h('button.pill-btn.teal', { on: { click: () => { close(); app.connectWallet(); } } }, 'connect wallet'), ' to cash in.')
