@@ -44,12 +44,14 @@ export const fmt = {
 };
 
 let toastBox = null;
-export function toast(message, kind = '') {
+// link: { href, text } adds a clickable link (a Solscan transaction, say) and keeps it up longer.
+export function toast(message, kind = '', link = null) {
   if (!toastBox) {
     toastBox = h('div.toasts.passive');
     document.getElementById('ui').append(toastBox);
   }
-  const el = h(`div.toast${kind ? '.' + kind : ''}`, message);
+  const el = h(`div.toast${kind ? '.' + kind : ''}${link ? '.has-link' : ''}`, message,
+    link ? h('a', { href: link.href, target: '_blank', rel: 'noopener' }, link.text) : null);
   toastBox.append(el);
-  setTimeout(() => el.remove(), kind === 'error' ? 4200 : 2800);
+  setTimeout(() => el.remove(), link ? 9000 : kind === 'error' ? 4200 : 2800);
 }

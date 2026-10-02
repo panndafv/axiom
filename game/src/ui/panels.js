@@ -96,7 +96,10 @@ export function createPanels(app) {
           h('li', 'a connected wallet (guests can only sell fish for gold)'),
           h('li', `at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in that wallet, checked live when you cash in`),
           CONFIG.earnGate > 0 ? h('li', `${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish, so you have actually played first`) : null),
-        h('p', `Each wallet can take up to ${fmt.pct(app.poolInfo?.dailyCapPct ?? 0.1)} of the pool per day. Cash-ins add to your claimable SOL; claim it at the chest (min ${fmt.sol(GAME.minClaimLamports, 2)}) and it is sent to your wallet.`),
+        h('p', `Each wallet can take up to ${fmt.pct(app.poolInfo?.dailyCapPct ?? 0.1)} of the pool per day. `,
+          CONFIG.autoPayouts
+            ? 'Every cash-in is sent straight to your wallet, and the reward pool lists each one with its transaction on Solscan.'
+            : `Cash-ins add to your claimable SOL. Claim it at the chest (min ${fmt.sol(GAME.minClaimLamports, 2)}) and it is sent to your wallet; the reward pool shows each payout's Solscan transaction once it has gone out.`),
         h('h3', 'On the deck'),
         h('p', kbd('W'), kbd('A'), kbd('S'), kbd('D'), ' walk · mouse or arrows look (click to grab the mouse) · ', kbd('Shift'), ' run · ', kbd('E'),
           ' interact (pier edge, shop, rod rack, fish rack, scores, reward chest) · ', kbd('E'), ' stop fishing · ', kbd('V'), ' view · ', kbd('P'), ' profile · ', kbd('M'), ' mute · ⌂ HOME (top left) comes back to the title.'),
@@ -106,6 +109,7 @@ export function createPanels(app) {
 
   // ---------------------------------------------------------------------------------- fish rack
   function rack() {
+    loadPayouts();
     open('rack', {
       title: 'Fish rack',
       cls: 'wide',
@@ -181,14 +185,62 @@ export function createPanels(app) {
           }, `sell everything ✦${fmt.int(total)}`),
         ),
       ),
+      payouts?.length ? [
+        h('h3', 'Your latest payouts'),
+        payoutTable(payouts.slice(0, 3)),
+        h('button.pill-btn.ghost', { on: { click: () => pool() } }, 'all payouts'),
+      ] : null,
     ];
   }
 
+  // Your payouts, newest first, each with its Solscan transaction. While one is still on its way,
+  // look again every few seconds (only while a panel that shows them is open).
+  let payouts = null;
+  let payoutTimer = null;
+  function loadPayouts() {
+    clearTimeout(payoutTimer);
+    if (isGuest()) { payouts = null; return; }
+    app.backend.payouts().then((d) => {
+      payouts = d.payouts;
+      rerender();
+      const waiting = payouts.some((po) => po.status === 'sent' || (CONFIG.autoPayouts && po.status === 'pending'));
+      if (waiting) {
+        payoutTimer = setTimeout(() => { if (current?.name === 'pool' || current?.name === 'rack') loadPayouts(); }, 4000);
+      }
+    }).catch(() => {});
+  }
+
+  const PAYOUT_STATUS = { pending: 'queued', sent: 'confirming…', paid: 'paid ✓', failed: 'failed' };
+  function payoutTable(list) {
+    return h('table.table.payouts',
+      h('tr', h('th', 'when'), h('th', 'amount'), h('th', 'status'), h('th', 'transaction')),
+      list.map((po) => h('tr',
+        h('td', new Date(po.created).toLocaleString()),
+        h('td.sol', fmt.sol(po.lamports)),
+        h(`td.st-${po.status}`, PAYOUT_STATUS[po.status] || po.status,
+          po.status === 'failed' && po.error ? h('div.note', po.error) : null),
+        h('td', po.tx && po.status !== 'failed'
+          ? h('a', { href: CONFIG.txUrl(po.tx), target: '_blank', rel: 'noopener' }, 'view on Solscan ↗')
+          : h('span.muted', po.status === 'pending' ? (CONFIG.autoPayouts ? 'sending…' : 'waiting to be sent') : '—')))));
+  }
+
   async function cashIn(ids) {
-    const res = await act(() => app.call('exchange', ids), (r) => `+${fmt.sol(r.total)} from the pool${r.capped ? ' (daily limit reached)' : ''}`);
+    const res = await act(() => app.call('exchange', ids));
     if (res) {
       sfx.bank();
+      const po = res.payout;
+      const capped = res.capped ? ' (daily limit reached)' : '';
+      if (po?.status === 'failed') {
+        app.toast(`+${fmt.sol(res.total)} from the pool, but it could not be sent: ${po.error} It is in your claimable balance.`, 'error');
+      } else if (po?.tx) {
+        app.toast(`Sent ${fmt.sol(res.total)} to your wallet${capped}`, 'good', { href: CONFIG.txUrl(po.tx), text: 'view on Solscan ↗' });
+      } else if (po) {
+        app.toast(`+${fmt.sol(res.total)} from the pool${capped}, sending it to your wallet…`, 'good');
+      } else {
+        app.toast(`+${fmt.sol(res.total)} from the pool${capped}. Claim it at the reward pool.`, 'good');
+      }
       if (res.pool) app.poolInfo = res.pool;
+      loadPayouts();
       rerender();
     } else {
       app.recheckHolding?.();
@@ -444,9 +496,8 @@ export function createPanels(app) {
   }
 
   function pool() {
-    let payouts = null;
     loadPool();
-    if (!isGuest()) app.backend.payouts().then((d) => { payouts = d.payouts; rerender(); }).catch(() => {});
+    loadPayouts();
     open('pool', {
       title: '◆ Reward pool',
       cls: 'wide',
@@ -467,23 +518,26 @@ export function createPanels(app) {
                 check(pr.lifetimeCash >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} lifetime gold (${fmt.int(pr.lifetimeCash)})`),
               ),
               h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.1)} of the pool.` : status.why),
-              h('div.stat-line', { style: { marginTop: '10px' } },
-                h('span', 'claimable ', h('span.sol', fmt.sol(pr.claimable))),
+              CONFIG.autoPayouts
+                ? h('p', 'Every cash-in is sent straight to your wallet. Each one is listed below with its transaction on Solscan.')
+                : h('p', 'Cash-ins add to your claimable SOL. Claim it to queue a payout; once it has been sent, its Solscan transaction shows up below.'),
+              // With automatic payouts, claimable only holds a payout that could not be sent.
+              CONFIG.autoPayouts && pr.claimable <= 0 ? null : h('div.stat-line', { style: { marginTop: '10px' } },
+                h('span', CONFIG.autoPayouts ? 'not sent yet ' : 'claimable ', h('span.sol', fmt.sol(pr.claimable))),
                 h('button.pill-btn.teal', {
-                  disabled: pr.claimable < GAME.minClaimLamports,
+                  disabled: CONFIG.autoPayouts ? pr.claimable <= 0 : pr.claimable < GAME.minClaimLamports,
                   on: {
                     click: async () => {
-                      const res = await act(() => app.call('claim'), (r) => `Claim of ${fmt.sol(r.payout.lamports)} queued — it will be sent to your wallet`);
-                      if (res) app.backend.payouts().then((d) => { payouts = d.payouts; rerender(); }).catch(() => {});
+                      const res = await act(() => app.call('claim'), (r) => (r.payout.status === 'failed'
+                        ? `Could not send it: ${r.payout.error}`
+                        : CONFIG.autoPayouts ? `Sending ${fmt.sol(r.payout.lamports)} to your wallet` : `Claim of ${fmt.sol(r.payout.lamports)} queued. It will be sent to your wallet.`));
+                      if (res) loadPayouts();
                     },
                   },
-                }, `claim to wallet`),
-                h('span.note', `min ${fmt.sol(GAME.minClaimLamports, 2)}`),
+                }, CONFIG.autoPayouts ? 'send to my wallet' : 'claim to wallet'),
+                CONFIG.autoPayouts ? null : h('span.note', `min ${fmt.sol(GAME.minClaimLamports, 2)}`),
               ),
-              payouts?.length ? h('table.table',
-                h('tr', h('th', 'claim'), h('th', 'amount'), h('th', 'status')),
-                payouts.slice(0, 6).map((po) => h('tr', h('td', new Date(po.created).toLocaleString()), h('td.sol', fmt.sol(po.lamports)),
-                  h('td', po.tx ? h('a', { href: `https://solscan.io/tx/${po.tx}`, target: '_blank', rel: 'noopener' }, po.status) : po.status)))) : null,
+              payouts?.length ? [h('h3', 'Your payouts'), payoutTable(payouts.slice(0, 10))] : null,
             ],
           h('div', { style: { marginTop: '14px' } }, h('button.pill-btn', { on: { click: () => rack() } }, 'open the fish rack')),
         ];

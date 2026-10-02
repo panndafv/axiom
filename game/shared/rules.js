@@ -63,7 +63,7 @@ export const RODS = [
   { id: 'sunset',     name: 'Sunset',     price: 3_500, luck: 30, reel: 1.14, tolerance: 1.18, color: '#ffae3d', tip: '#ffd36b', glow: '#ffb347', blurb: 'Glowing golden embers.' },
   { id: 'tidecaster', name: 'Tidecaster', price: 8_000, luck: 40, reel: 1.2,  tolerance: 1.25, color: '#3ad6c8', tip: '#9ffcff', glow: '#4ff2e4', blurb: 'Shimmering deep-sea cyan.' },
   // Not for sale: it leans against the lamp room at the top of the lighthouse for whoever climbs up.
-  { id: 'beacon',     name: 'Beacon',     price: null,  luck: 50, reel: 1.22, tolerance: 1.28, color: '#fff1c2', tip: '#ffe27a', glow: '#ffe9a0', hidden: true, blurb: 'Found at the top of the lighthouse.' },
+  { id: 'beacon',     name: 'Beacon',     price: null,  luck: 25, reel: 1.22, tolerance: 1.28, color: '#fff1c2', tip: '#ffe27a', glow: '#ffe9a0', hidden: true, blurb: 'Found at the top of the lighthouse.' },
 ];
 
 export const RODS_BY_ID = Object.fromEntries(RODS.map((r) => [r.id, r]));

@@ -24,7 +24,12 @@ async function rpc(method, params) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }),
   });
-  if (body.error) throw new Error(`RPC ${method}: ${body.error.message || body.error.code}`);
+  if (body.error) {
+    const err = new Error(`RPC ${method}: ${body.error.message || body.error.code}`);
+    err.code = body.error.code;
+    err.data = body.error.data;
+    throw err;
+  }
   return body.result;
 }
 
@@ -163,4 +168,37 @@ export async function solBalance(address) {
   if (!Number.isSafeInteger(lamports) || lamports < 0) throw new Error('getBalance returned no value');
   solBalances.set(address, { lamports, at: Date.now() });
   return lamports;
+}
+
+// After a payout leaves the pool wallet, so the next pool figure is read fresh.
+export function forgetSolBalance(address) {
+  solBalances.delete(address);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sending payouts (payer.js)
+
+export async function latestBlockhash() {
+  const result = await rpc('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+  const { blockhash, lastValidBlockHeight } = result?.value || {};
+  if (!blockhash || !Number.isSafeInteger(lastValidBlockHeight)) throw new Error('getLatestBlockhash returned no blockhash');
+  return { blockhash, lastValidBlockHeight };
+}
+
+// Throws with err.code -32002 when the node's simulation rejected it: then it was never sent.
+export async function sendTransaction(base64) {
+  return rpc('sendTransaction', [base64, { encoding: 'base64', preflightCommitment: 'confirmed', maxRetries: 10 }]);
+}
+
+// One entry per signature: null if the cluster has no record of it, else { confirmationStatus, err }.
+// searchHistory also looks beyond the last couple of minutes.
+export async function signatureStatuses(signatures, searchHistory = false) {
+  const result = await rpc('getSignatureStatuses', [signatures, { searchTransactionHistory: searchHistory }]);
+  return result?.value || signatures.map(() => null);
+}
+
+export async function blockHeight() {
+  const h = await rpc('getBlockHeight', [{ commitment: 'confirmed' }]);
+  if (!Number.isSafeInteger(h)) throw new Error('getBlockHeight returned no height');
+  return h;
 }

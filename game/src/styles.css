@@ -297,6 +297,12 @@ a { color: var(--teal); }
 }
 .toast.error { border-color: var(--red); color: #ffd2cc; }
 .toast.good { border-color: var(--teal); }
+.toast.has-link { pointer-events: auto; }
+.table.payouts .st-paid { color: var(--teal); }
+.table.payouts .st-sent, .table.payouts .st-pending { color: var(--gold); }
+.table.payouts .st-failed { color: var(--red); }
+.table.payouts a { color: var(--teal); }
+.toast a { margin-left: 10px; color: var(--teal); font-weight: 700; text-decoration: underline; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
 
 /* ------------------------------------------------------------------ modal */

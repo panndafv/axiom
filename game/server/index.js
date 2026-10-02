@@ -12,6 +12,7 @@ import { config } from './config.js';
 import { openDb, closeDb, withProfile, topScores, rankOf } from './db.js';
 import * as auth from './auth.js';
 import * as pool from './pool.js';
+import * as payer from './payer.js';
 import { holding } from './solana.js';
 import * as lobby from './lobby.js';
 import * as engine from '../shared/engine.js';
@@ -95,6 +96,8 @@ const routes = {
     minHoldUsd: config.minHoldUsd,
     earnGate: config.earnGate,
     poolMode: config.poolMode,
+    autoPayouts: config.autoPayouts,
+    cluster: config.solanaCluster,
     dev: config.dev,
   }),
 
@@ -198,16 +201,25 @@ const routes = {
         earnGate: config.earnGate,
       });
       pool.recordExchange(wallet, result, now);
-      return { items: result.items, total: result.total, capped: result.capped, profile: engine.publicProfile(p, now) };
+      // Automatic payouts: the SOL goes straight to the wallet, with anything left over from before.
+      const payout = payer.enabled() ? pool.recordClaim(wallet, engine.claim(p, 1).amount, now) : null;
+      return { items: result.items, total: result.total, capped: result.capped, payout, profile: engine.publicProfile(p, now) };
     });
+    if (out.payout) out.payout = await payer.send(out.payout.id);
     return { ...out, pool: pool.summary() };
   }),
 
-  'POST /api/pool/claim': user((wallet) => withProfile(wallet, (p, now) => {
-    const { amount } = engine.claim(p);
-    const payout = pool.recordClaim(wallet, amount, now);
-    return { payout, profile: engine.publicProfile(p, now) };
-  })),
+  // Manual payouts: queues the claimable balance for the admin. Automatic: sends it now (any
+  // amount, e.g. a payout that failed and went back to claimable).
+  'POST /api/pool/claim': user(async (wallet) => {
+    const out = withProfile(wallet, (p, now) => {
+      const { amount } = payer.enabled() ? engine.claim(p, 1) : engine.claim(p);
+      const payout = pool.recordClaim(wallet, amount, now);
+      return { payout, profile: engine.publicProfile(p, now) };
+    });
+    if (payer.enabled()) out.payout = await payer.send(out.payout.id);
+    return out;
+  }),
 
   'GET /api/payouts': user((wallet) => ({ payouts: pool.payoutsFor(wallet, 20) })),
 
@@ -235,7 +247,7 @@ const routes = {
 
   'GET /api/admin/payouts': admin(({ query }) => {
     const status = query.get('status') || '';
-    if (status && status !== 'pending' && status !== 'paid') throw badRequest('status must be pending or paid.');
+    if (status && !['pending', 'sent', 'paid', 'failed'].includes(status)) throw badRequest('status must be pending, sent, paid or failed.');
     return { payouts: pool.listPayouts(status) };
   }),
 };
@@ -520,7 +532,10 @@ export async function startServer({ port = config.port, host = config.host, dbPa
     const devNote = config.dev ? 'ON (no TOKEN_MINT, holding check always passes)' : 'off';
     console.log(`${config.gameName} server at ${url} | pool mode: ${config.poolMode} | dev mode: ${devNote} | ${staticNote}`);
     if (seeded) console.log(`Test pool seeded with ${seeded / 1e9} fake SOL (SEED_POOL_SOL).`);
+    if (config.autoPayouts) console.log(`Automatic payouts ON from ${config.poolWallet} (${config.solanaCluster}).`);
   }
+  payer.start();
+  server.on('close', () => payer.stop());
   const close = () => new Promise((resolve) => {
     server.close(() => {
       closeDb();

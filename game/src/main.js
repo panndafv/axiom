@@ -25,7 +25,7 @@ import { createLocalBackend, createRemoteBackend, publicApi } from './net/api.js
 import { connectAndSignIn, disconnect as walletDisconnect, hasWallet, loadSession, saveSession } from './net/wallet.js';
 import { createLobbyClient } from './net/lobby.js';
 import { createRemotes } from './scene/remotes.js';
-import { RARITIES, SPECIES_BY_ID } from '../shared/rules.js';
+import { RARITIES, SPECIES_BY_ID, RODS_BY_ID } from '../shared/rules.js';
 
 // ------------------------------------------------------------------------------------------------
 // Renderer
@@ -367,7 +367,7 @@ function interact(it) {
       app.call('find', it.rod).then((res) => {
         if (res.already) return;
         sfx.land(5);
-        toast('★ You found the BEACON rod: +50 luck. It is on your rod rack now.', 'good');
+        toast(`★ You found the BEACON rod: +${RODS_BY_ID.beacon.luck} luck. It is on your rod rack now.`, 'good');
       }).catch((err) => toast(err.message, 'error'));
       break;
     default: break;

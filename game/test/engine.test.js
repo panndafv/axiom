@@ -262,7 +262,7 @@ test('the Beacon rod cannot be bought, only found once at the top of the lightho
   assert.throws(() => engine.buy(p, 'rod', 'beacon'), { code: 'not_for_sale' });
   assert.deepEqual(engine.find(p, 'beacon'), { rod: 'beacon', already: false });
   assert.equal(p.rod, 'beacon');
-  assert.equal(engine.currentLuck(p), 50);
+  assert.equal(engine.currentLuck(p), 25);
   assert.deepEqual(engine.find(p, 'beacon'), { rod: 'beacon', already: true });
   assert.equal(p.rods.filter((r) => r === 'beacon').length, 1);
   assert.throws(() => engine.find(p, 'tidecaster'), { code: 'not_found' });

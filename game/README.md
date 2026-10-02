@@ -3,7 +3,7 @@
 A low-poly 3D multiplayer fishing game for a memecoin. Up to 25 players share a pier. Cast from any
 edge, reel fish in, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
 for a share of a SOL reward pool** funded by the token's creator fees. Only wallets holding at
-least **$50 of the token** can cash in.
+least **$30 of the token** can cash in.
 
 The name and the `$DRIFT` ticker are set in `.env` (`GAME_NAME`, `TOKEN_SYMBOL`), along with the token mint.
 
@@ -81,7 +81,7 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
   It multiplies the weight of every tier above common by `1 + luck/100 × 1.5 × tier`. At 40 luck a
   mythic is 4× as likely. Better rods also take a little more tension, so the rare fish they bring
   in can still be landed.
-- **The Beacon** (+50 luck) is not for sale. It leans on the lamp room at the top of the lighthouse.
+- **The Beacon** (+25 luck) is not for sale. It leans on the lamp room at the top of the lighthouse.
   Press E at the lighthouse door (the prompt only appears when you stand there), walk round the
   gallery and take it. The server only hands it to a wallet whose player is up the lighthouse in a
   lobby at that moment.
@@ -92,31 +92,50 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
   - it must have earned `EARN_GATE` lifetime gold (anti-bot: you have to actually play first);
   - it can take at most `POOL_DAILY_CAP_PCT` of the pool per 24 hours (default 10%; keep it above
     6.5% or a Ghost Whale could never be cashed in).
-- Cash-ins add to the player's **claimable** SOL. A claim (min 0.01 SOL) queues a payout.
+- With automatic payouts on, every cash-in is sent to the player's wallet straight away. Otherwise
+  it adds to their **claimable** SOL, and a claim (min 0.01 SOL) queues a payout for you to send.
 
 ## The reward pool and payouts
 
-Two modes:
+Where the pool's SOL comes from:
 
-- **Ledger mode** (default, `POOL_WALLET` empty). The pool is a number in the database. Top it up
+- **Ledger mode** (default, no pool wallet). The pool is a number in the database. Top it up
   when creator fees come in:
   ```bash
   curl -X POST https://your.site/api/admin/pool -H "x-admin-key: $ADMIN_KEY" \
        -H 'content-type: application/json' -d '{"addLamports": 5000000000}'   # +5 SOL
   ```
-- **Wallet mode** (`POOL_WALLET` set). The pool is that wallet's on-chain SOL balance, minus
-  everything already owed to players and a small reserve. Sending SOL to the wallet tops it up.
+- **Wallet mode** (`POOL_WALLET` or `POOL_SECRET_KEY` set). The pool is that wallet's on-chain SOL
+  balance, minus everything already owed to players and a small reserve. Sending SOL to the wallet
+  tops it up.
 
-Payouts are **manual for now**. Nothing in this code holds a private key. To pay out:
+How players get paid:
 
-```bash
-curl https://your.site/api/admin/payouts?status=pending -H "x-admin-key: $ADMIN_KEY"
-# send each one from the pool wallet, then record the transaction:
-curl -X POST https://your.site/api/admin/payouts/12 -H "x-admin-key: $ADMIN_KEY" \
-     -H 'content-type: application/json' -d '{"tx": "<signature>"}'
-```
+- **Automatic** (`POOL_SECRET_KEY` set). The server signs and sends every payout from the pool
+  wallet itself. A player who cashes in a fish gets the SOL in their wallet within seconds, a
+  "view on Solscan" link in the game, and a list of all their payouts with their transactions in
+  the reward pool panel. Use a wallet made only for the pool (fund it from the creator-fee wallet),
+  and keep its key in your host's secret settings only. Payouts are never sent twice: each
+  transaction is recorded before it is broadcast and only re-sent once it can no longer land. If
+  the network refuses one (say the player's wallet has 0 SOL and the amount is tiny), it goes back
+  to the player's balance with a reason, and they can send it again from the reward pool. Run one
+  server instance. Turning it on also sends any claims still waiting in the manual queue, so
+  record the ones you already paid by hand first.
+- **Manual** (no key). Claims queue up for you to pay by hand:
+  ```bash
+  curl https://your.site/api/admin/payouts?status=pending -H "x-admin-key: $ADMIN_KEY"
+  # send each one from the pool wallet, then record the transaction:
+  curl -X POST https://your.site/api/admin/payouts/12 -H "x-admin-key: $ADMIN_KEY" \
+       -H 'content-type: application/json' -d '{"tx": "<signature>"}'
+  ```
+  Players see the Solscan link once you record it.
 
-Players see their claims and the transaction links in the reward pool panel.
+**Try automatic payouts for free on devnet:** make a new wallet in Phantom, switch Phantom to
+devnet (Settings → Developer Settings → Testnet Mode, then Solana Devnet), get free devnet SOL from
+https://faucet.solana.com, and export that wallet's private key. On the server set
+`SOLANA_RPC_URL=https://api.devnet.solana.com`, `POOL_SECRET_KEY=<that key>` and leave
+`TOKEN_MINT` empty. Cash-ins then send real devnet SOL with working Solscan links. Your player
+wallet needs a little devnet SOL too, or small payouts are refused for rent.
 
 ## Lobbies
 
@@ -148,7 +167,7 @@ the pool.
 
 **Test site on Render (free, a few clicks):** the repo root has a `render.yaml`. On render.com choose
 **New → Blueprint**, pick this repo and the branch the game is on, and click **Apply**. You get an
-`https://…onrender.com` link with a test pool of 5 fake SOL, no earn gate, and the $50 check off.
+`https://…onrender.com` link with a test pool of 5 fake SOL, no earn gate, and the $30 check off.
 The free plan sleeps after 15 idle minutes (the next visit takes about a minute to wake it) and
 starts with a fresh database on every deploy or restart. To use your own domain, open the service's
 **Settings → Custom Domains**, add the domain, and create the DNS record Render shows you at your
@@ -160,12 +179,10 @@ the SQLite file works: a VPS, Fly.io, Railway or Render with a volume. Run it be
 - `TOKEN_MINT`, `TOKEN_SYMBOL`, `GAME_NAME`
 - `SOLANA_RPC_URL`: a private RPC (Helius, Triton, QuickNode). The public endpoint rate-limits.
 - `ADMIN_KEY`: a long random string.
-- `POOL_WALLET`, if you use wallet mode.
+- `POOL_SECRET_KEY` for automatic payouts (or `POOL_WALLET` for wallet mode with manual payouts).
 - `TRUST_PROXY=1`, if behind a load balancer.
 
 ## Not done yet
 
-- Automatic on-chain payouts. Claims queue for manual payment; a payout worker can be added once the
-  fee wallet setup is decided.
 - Buying shop items with the token, or burning it. Everything is bought with in-game gold.
 - Real-device testing on phones. Touch controls were only tested in an emulator.

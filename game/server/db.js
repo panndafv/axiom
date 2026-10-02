@@ -81,7 +81,17 @@ export function openDb(file = config.dbPath) {
   db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA busy_timeout = 5000');
   db.exec(SCHEMA);
+  // Columns added after the first release. Automatic payouts (payer.js) keep the last block
+  // height a sent transaction can land at, how often it was sent, and why it failed.
+  addColumn('payouts', 'last_valid', 'INTEGER');
+  addColumn('payouts', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('payouts', 'error', 'TEXT');
   return db;
+}
+
+function addColumn(table, column, type) {
+  const have = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+  if (!have) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 
 export function closeDb() {
@@ -142,13 +152,16 @@ function saveProfile(wallet, p, now) {
 // Load (or create) a player's profile, tidy it, let fn change it and save it, all in one
 // transaction. Whatever fn returns is passed through. fn(profile, now) must not await.
 export function withProfile(wallet, fn, now = Date.now()) {
-  return tx(() => {
-    const p = getProfile(wallet) || newProfile(wallet, now);
-    sweep(p, now);
-    const out = fn(p, now);
-    saveProfile(wallet, p, now);
-    return out;
-  });
+  return tx(() => editProfile(wallet, fn, now));
+}
+
+// The same, for code that is already inside a tx().
+export function editProfile(wallet, fn, now = Date.now()) {
+  const p = getProfile(wallet) || newProfile(wallet, now);
+  sweep(p, now);
+  const out = fn(p, now);
+  saveProfile(wallet, p, now);
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------

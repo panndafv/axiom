@@ -8,9 +8,12 @@ export const CONFIG = {
   tokenMint: env.VITE_TOKEN_MINT || '',
   buyUrl: env.VITE_BUY_URL || '',
   apiUrl: (env.VITE_API_URL || '').replace(/\/$/, ''),
-  minHoldUsd: 50,
+  minHoldUsd: 30,
   earnGate: 1500,
   explorerUrl: (mint) => `https://solscan.io/token/${mint}`,
+  cluster: 'mainnet',
+  autoPayouts: false,
+  txUrl: (sig) => `https://solscan.io/tx/${sig}${CONFIG.cluster === 'devnet' ? '?cluster=devnet' : ''}`,
 };
 
 export function applyServerConfig(cfg) {
@@ -20,4 +23,6 @@ export function applyServerConfig(cfg) {
   if (cfg.tokenMint) CONFIG.tokenMint = cfg.tokenMint;
   if (Number.isFinite(cfg.minHoldUsd)) CONFIG.minHoldUsd = cfg.minHoldUsd;
   if (Number.isFinite(cfg.earnGate)) CONFIG.earnGate = cfg.earnGate;
+  if (cfg.cluster) CONFIG.cluster = cfg.cluster;
+  CONFIG.autoPayouts = !!cfg.autoPayouts;
 }

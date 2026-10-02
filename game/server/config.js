@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bs58 from 'bs58';
+import nacl from 'tweetnacl';
 import { LAMPORTS_PER_SOL } from '../shared/rules.js';
 
 export const GAME_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -65,12 +66,33 @@ function solanaAddress(name) {
   return v;
 }
 
+// A wallet's 64-byte secret key: base58 (what Phantom's "Export Private Key" shows) or the JSON
+// array from a solana-keygen file. The error never repeats the value.
+function secretKey(name) {
+  const v = str(name, '');
+  if (!v) return null;
+  let bytes = null;
+  try {
+    bytes = v.startsWith('[') ? Uint8Array.from(JSON.parse(v)) : bs58.decode(v);
+  } catch {
+    bytes = null;
+  }
+  const ok = bytes?.length === 64
+    && nacl.sign.keyPair.fromSeed(bytes.slice(0, 32)).publicKey.every((b, i) => b === bytes[32 + i]);
+  if (!ok) throw new Error(`${name} is not a valid wallet secret key (expected the base58 private key Phantom exports, or a keypair file's [..] array)`);
+  return bytes;
+}
+
 function fromGameDir(p) {
   return path.isAbsolute(p) ? p : path.resolve(GAME_DIR, p);
 }
 
 const tokenMint = solanaAddress('TOKEN_MINT');
-const poolWallet = solanaAddress('POOL_WALLET');
+const poolSecretKey = secretKey('POOL_SECRET_KEY');
+const keyWallet = poolSecretKey ? bs58.encode(poolSecretKey.slice(32)) : '';
+const poolWallet = solanaAddress('POOL_WALLET') || keyWallet;
+if (keyWallet && poolWallet !== keyWallet) throw new Error('POOL_WALLET does not match POOL_SECRET_KEY; set just one of them');
+const solanaRpcUrl = str('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com');
 const dbPath = str('DB_PATH', './data/game.db');
 
 export const config = {
@@ -81,12 +103,17 @@ export const config = {
   tokenSymbol: str('TOKEN_SYMBOL', 'DRIFT'),
   tokenMint,
   dev: !tokenMint, // no mint configured: the holding check always passes
-  solanaRpcUrl: str('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com'),
-  minHoldUsd: num('MIN_HOLD_USD', 50),
+  solanaRpcUrl,
+  // Only changes explorer links. Guessed from the RPC URL when not set.
+  solanaCluster: str('SOLANA_CLUSTER', '') || (/devnet/i.test(solanaRpcUrl) ? 'devnet' : 'mainnet'),
+  minHoldUsd: num('MIN_HOLD_USD', 30),
   earnGate: num('EARN_GATE', 1500),
   poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
   poolWallet,
   poolMode: poolWallet ? 'wallet' : 'ledger',
+  // With the pool wallet's key the server sends payouts itself (see payer.js).
+  autoPayouts: !!poolSecretKey,
+  priorityFeeMicroLamports: num('PRIORITY_FEE_MICROLAMPORTS', 10_000),
   poolReserveLamports: Math.round(num('POOL_RESERVE_SOL', 0.05) * LAMPORTS_PER_SOL),
   adminKey: str('ADMIN_KEY', ''),
   // Dev mode only: fake SOL put in an empty test pool at startup, so cash-ins can be tried
@@ -99,3 +126,7 @@ export const config = {
   // limiter use the client address the proxy reports in X-Forwarded-For instead.
   trustProxy: bool('TRUST_PROXY', false),
 };
+
+// Kept off the enumerable fields so the key can never end up in a log line or a JSON dump of
+// the config.
+Object.defineProperty(config, 'poolSecretKey', { value: poolSecretKey, enumerable: false });
