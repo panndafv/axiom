@@ -180,7 +180,7 @@ test('lobby chat: everyone sees a line, one line per 5 seconds, no links, newcom
   assert.match(slow.why, /again in \d+s/);
   assert.ok(slow.waitMs > 0 && slow.waitMs <= 5000);
 
-  b.send({ t: 'chat', text: 'claim at drift-airdrop.xyz' });
+  b.send({ t: 'chat', text: 'claim at tydal-airdrop.xyz' });
   assert.match((await b.next('chat_no')).why, /Links/);
   b.send({ t: 'chat', text: '<b>hi</b>' });
   assert.equal((await a.next('chat')).text, '<b>hi</b>', 'sent as text; the page shows it as text');

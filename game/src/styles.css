@@ -1,7 +1,7 @@
 /* Digits 0-9 drawn in the chunky display face: the pixel font's 5 and 0 look like S and O. Letters
    stay pixel. Listed first in --pixel, so every number in the UI picks it up. */
 @font-face {
-  font-family: 'Drift Digits';
+  font-family: 'Tydal Digits';
   src: url('../node_modules/@fontsource/lilita-one/files/lilita-one-latin-400-normal.woff2') format('woff2');
   unicode-range: U+0030-0039;
   font-display: swap;
@@ -23,7 +23,7 @@
   --gold: #ffd95c;
   --green: #62e08f;
   --display: 'Lilita One', 'Arial Black', system-ui, sans-serif;
-  --pixel: 'Drift Digits', 'Pixelify Sans', ui-monospace, 'Courier New', monospace;
+  --pixel: 'Tydal Digits', 'Pixelify Sans', ui-monospace, 'Courier New', monospace;
 }
 
 * { box-sizing: border-box; }

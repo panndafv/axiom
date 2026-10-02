@@ -2,7 +2,7 @@
 rem Double-click to play locally: installs, builds, starts the game server and opens the browser.
 rem Keep this window open while you play; close it to stop the server.
 cd /d "%~dp0"
-title Drift server
+title Tydal server
 
 where node >nul 2>nul
 if errorlevel 1 (

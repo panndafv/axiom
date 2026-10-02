@@ -25,7 +25,7 @@ const rpc = http.createServer((req, res) => {
   });
 });
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-holding-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tydal-holding-'));
 let app;
 
 before(async () => {

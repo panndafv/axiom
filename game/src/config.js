@@ -3,8 +3,8 @@
 const env = import.meta.env;
 
 export const CONFIG = {
-  gameName: env.VITE_GAME_NAME || 'Drift',
-  tokenSymbol: env.VITE_TOKEN_SYMBOL || 'DRIFT',
+  gameName: env.VITE_GAME_NAME || 'Tydal',
+  tokenSymbol: env.VITE_TOKEN_SYMBOL || 'TYDAL',
   tokenMint: env.VITE_TOKEN_MINT || '',
   buyUrl: env.VITE_BUY_URL || '',
   xUrl: env.VITE_X_URL || 'https://x.com/driftgamesol',

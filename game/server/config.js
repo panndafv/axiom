@@ -125,8 +125,8 @@ export const config = {
   port: num('PORT', 8787),
   host: str('HOST', '0.0.0.0'),
   dbPath: dbPath === ':memory:' ? dbPath : fromGameDir(dbPath),
-  gameName: str('GAME_NAME', 'Drift'),
-  tokenSymbol: str('TOKEN_SYMBOL', 'DRIFT'),
+  gameName: str('GAME_NAME', 'Tydal'),
+  tokenSymbol: str('TOKEN_SYMBOL', 'TYDAL'),
   tokenMint,
   dev: !tokenMint, // no mint configured: the holding check always passes
   solanaRpcUrl,
@@ -151,7 +151,7 @@ export const config = {
   // Pauses the game: players see this message (MAINTENANCE=1 gives a default one) and nobody can
   // play, fish or cash in until it is removed. Admin routes and payouts already owed keep working.
   maintenance: !maintenance || maintenance === '0' ? ''
-    : ['1', 'true', 'yes', 'on'].includes(maintenance.toLowerCase()) ? 'Drift is paused for a little while. Back soon!'
+    : ['1', 'true', 'yes', 'on'].includes(maintenance.toLowerCase()) ? `${str('GAME_NAME', 'Tydal')} is paused for a little while. Back soon!`
       : maintenance.slice(0, 200),
   // Dev mode only: fake SOL put in an empty test pool at startup, so cash-ins can be tried
   // without the admin API. Ignored once TOKEN_MINT is set.

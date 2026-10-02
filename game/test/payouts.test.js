@@ -80,7 +80,7 @@ const rpc = http.createServer((req, res) => {
 
 // --- the game server, pointed at the fake RPC --------------------------------------------------
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-payouts-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tydal-payouts-'));
 let app, payer, db;
 
 before(async () => {

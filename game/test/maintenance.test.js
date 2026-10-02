@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-pause-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tydal-pause-'));
 let app;
 
 before(async () => {

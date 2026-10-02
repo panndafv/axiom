@@ -1,11 +1,11 @@
-# Drift
+# Tydal
 
 A low-poly 3D multiplayer fishing game for a memecoin. Up to 25 players share a pier. Cast from any
 edge, reel fish in, and sell them for gold to buy better rods and bait. Rare fish can be **cashed in
 for a share of a SOL reward pool** funded by the token's creator fees. Only wallets holding at
 least **$30 of the token** can cash in.
 
-The name and the `$DRIFT` ticker are set in `.env` (`GAME_NAME`, `TOKEN_SYMBOL`), along with the token mint.
+The name and the `$TYDAL` ticker are set in `.env` (`GAME_NAME`, `TOKEN_SYMBOL`), along with the token mint.
 
 ```
 game/
