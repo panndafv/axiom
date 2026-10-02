@@ -89,7 +89,7 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
   never be drained to zero, and more players just means smaller slices. Before a wallet can cash in:
   - it must hold at least `MIN_HOLD_USD` of the token, checked live on-chain with the price from
     DexScreener (Jupiter as fallback);
-  - it must have earned `EARN_GATE` lifetime gold (anti-bot: you have to actually play first);
+  - it must have sold `EARN_GATE` fish at the rack (default 10; anti-bot: you have to actually play first);
   - it can take at most `POOL_DAILY_CAP_PCT` of the pool per 24 hours (default 10%; keep it above
     6.5% or a Ghost Whale could never be cashed in).
 - With automatic payouts on, every cash-in is sent to the player's wallet straight away. Otherwise

@@ -112,7 +112,7 @@ export const config = {
   // Explorer links, and whether real SOL is at stake. Guessed from the RPC URL when not set.
   solanaCluster,
   minHoldUsd: num('MIN_HOLD_USD', 30),
-  earnGate: num('EARN_GATE', 1500),
+  earnGate: num('EARN_GATE', 10), // fish a wallet must have sold before it can cash any in
   poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
   poolWallet,
   poolMode: poolWallet ? 'wallet' : 'ledger',

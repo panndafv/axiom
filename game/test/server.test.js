@@ -27,7 +27,7 @@ Object.assign(process.env, {
   POOL_WALLET: '',
   ADMIN_KEY: 'test-admin-key',
   CORS_ORIGIN: '',
-  EARN_GATE: '1500',
+  EARN_GATE: '10',
   POOL_DAILY_CAP_PCT: '0.05',
   TRUST_PROXY: '1', // lets each request below claim its own address, so the rate limit stays out of the way
 });
@@ -110,7 +110,7 @@ test('health and config', async () => {
   assert.equal(cfg.body.dev, true);
   assert.equal(cfg.body.poolMode, 'ledger');
   assert.equal(cfg.body.tokenMint, '');
-  assert.equal(cfg.body.earnGate, 1500);
+  assert.equal(cfg.body.earnGate, 10);
   assert.equal(typeof cfg.body.minHoldUsd, 'number');
 });
 
@@ -291,7 +291,7 @@ test('pool: admin deposit, exchange, claim, payout marked paid', async () => {
   assert.equal(gated.status, 403);
   assert.equal(gated.body.error, 'gate');
 
-  withProfile(wallet, (p) => { p.lifetimeCash = 2_000; });
+  withProfile(wallet, (p) => { p.sold = 10; });
   const ex1 = await api('POST', '/api/pool/exchange', { token, body: { fishIds: [ids[0]] } });
   assert.equal(ex1.status, 200, ex1.text);
   const pay1 = poolPayout('rare', SOL);

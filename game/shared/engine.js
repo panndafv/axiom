@@ -27,7 +27,8 @@ export function newProfile(id, now = Date.now()) {
     id,
     createdAt: now,
     cash: 0,          // gold
-    lifetimeCash: 0,  // gold ever earned (the pool's earn gate)
+    lifetimeCash: 0,  // gold ever earned
+    sold: 0,          // fish ever sold (the pool's unlock: sell some fish before cashing any in)
     caught: 0,        // total value of every fish ever landed (the leaderboard score)
     landed: 0,
     snaps: 0,
@@ -163,6 +164,7 @@ export function sell(p, fishIds) {
   const cash = sold.reduce((s, f) => s + f.value, 0);
   p.cash += cash;
   p.lifetimeCash += cash;
+  p.sold += sold.length;
   return { sold: sold.length, cash };
 }
 
@@ -225,8 +227,9 @@ export function equip(p, kind, id) {
 // at once gives slightly less per fish than the first one, and the pool never reaches zero.
 
 export function exchange(p, fishIds, availableLamports, { now = Date.now(), dailyCapPct = 0.1, earnGate = 0 } = {}) {
-  if (p.lifetimeCash < earnGate) {
-    throw new GameError('gate', `Earn ${earnGate - p.lifetimeCash} more lifetime cash to unlock the pool.`, 403);
+  if (p.sold < earnGate) {
+    const n = earnGate - p.sold;
+    throw new GameError('gate', `Sell ${n} more fish at the rack to unlock the pool.`, 403);
   }
   if (!Array.isArray(fishIds) || !fishIds.length) throw new GameError('empty', 'Pick some fish to exchange.');
   sweep(p, now);
@@ -275,6 +278,7 @@ export function publicProfile(p, now = Date.now()) {
     id: p.id,
     cash: p.cash,
     lifetimeCash: p.lifetimeCash,
+    sold: p.sold,
     caught: p.caught,
     landed: p.landed,
     snaps: p.snaps,

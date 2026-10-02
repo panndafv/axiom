@@ -95,7 +95,7 @@ export function createPanels(app) {
         h('ul.howto-list',
           h('li', 'a connected wallet (guests can only sell fish for gold)'),
           h('li', `at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in that wallet, checked live when you cash in`),
-          CONFIG.earnGate > 0 ? h('li', `${fmt.int(CONFIG.earnGate)} lifetime gold from selling fish, so you have actually played first`) : null),
+          CONFIG.earnGate > 0 ? h('li', `${fmt.int(CONFIG.earnGate)} fish sold at the fish rack, so you have actually played first`) : null),
         h('p', `Each wallet can take up to ${fmt.pct(app.poolInfo?.dailyCapPct ?? 0.1)} of the pool per day. `,
           CONFIG.autoPayouts
             ? 'Every cash-in is sent straight to your wallet, and the reward pool lists each one with its transaction on Solscan.'
@@ -122,7 +122,7 @@ export function createPanels(app) {
     const pr = p();
     if (isGuest()) return { ok: false, why: 'connect a wallet on the title screen to cash in rare fish for SOL from the reward pool (RARE, EPIC, LEGENDARY, MYTHIC)' };
     if (!app.holding?.ok) return { ok: false, why: `hold at least $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} in this wallet to cash in rare fish` };
-    if (pr.lifetimeCash < CONFIG.earnGate) return { ok: false, why: `sell ${fmt.int(CONFIG.earnGate - pr.lifetimeCash)} more gold worth of fish to unlock cash-ins` };
+    if ((pr.sold || 0) < CONFIG.earnGate) return { ok: false, why: `sell ${fmt.int(CONFIG.earnGate - (pr.sold || 0))} more fish at the rack to unlock cash-ins` };
     return { ok: true, why: 'rare fish and up can be cashed in for a share of the reward pool' };
   }
 
@@ -445,7 +445,7 @@ export function createPanels(app) {
               check(!!hold?.ok, hold?.dev ? `holding check off (dev mode)` : hold?.ok
                 ? `holding ${fmt.int(hold.balance)} $${CONFIG.tokenSymbol} ≈ ${fmt.usd(hold.usd)}`
                 : hold?.error ? `couldn't check holdings: ${hold.error}` : `holding ${fmt.int(hold?.balance || 0)} $${CONFIG.tokenSymbol} ≈ ${fmt.usd(hold?.usd || 0)} — need $${CONFIG.minHoldUsd}`),
-              check(pr.lifetimeCash >= CONFIG.earnGate, `lifetime gold ${fmt.int(pr.lifetimeCash)} / ${fmt.int(CONFIG.earnGate)}`),
+              check((pr.sold || 0) >= CONFIG.earnGate, `fish sold ${fmt.int(pr.sold || 0)} / ${fmt.int(CONFIG.earnGate)}`),
             ),
             h('p', 'claimable ', h('span.sol', fmt.sol(pr.claimable)), ' · earned all-time ', h('span.sol', fmt.sol(pr.totalEarned))),
             h('div', { style: { display: 'flex', gap: '8px' } },
@@ -515,7 +515,7 @@ export function createPanels(app) {
               h('div.check-list',
                 check(true, `wallet ${shortAddress(app.session.wallet)}`),
                 check(!!app.holding?.ok, app.holding?.dev ? 'holding check off (dev mode)' : `holds ≥ $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol}${app.holding ? ` (now ${fmt.usd(app.holding.usd || 0)})` : ''}`),
-                check(pr.lifetimeCash >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} lifetime gold (${fmt.int(pr.lifetimeCash)})`),
+                check((pr.sold || 0) >= CONFIG.earnGate, `${fmt.int(CONFIG.earnGate)} fish sold (${fmt.int(pr.sold || 0)})`),
               ),
               h('p.note', status.ok ? `Daily limit per wallet: ${fmt.pct(info?.dailyCapPct ?? 0.1)} of the pool.` : status.why),
               CONFIG.autoPayouts

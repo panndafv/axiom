@@ -115,6 +115,7 @@ test('sell turns stored fish into cash', () => {
   assert.deepEqual(out, { sold: 2, cash: 19 });
   assert.equal(p.cash, 19);
   assert.equal(p.lifetimeCash, 19);
+  assert.equal(p.sold, 2, 'sold fish count towards the pool unlock');
   assert.equal(p.storage.length, 1);
   assert.throws(() => engine.sell(p, [a.id]), { code: 'not_found' });
   assert.throws(() => engine.sell(p, []), { code: 'empty' });
@@ -157,17 +158,17 @@ test('buy checks cash; rods equip on purchase; bait is used up one per cast', ()
 // Reward pool
 
 const SOL = 1_000_000_000;
-const poolOpts = { now: T0, dailyCapPct: 0.05, earnGate: 1500 };
+const poolOpts = { now: T0, dailyCapPct: 0.05, earnGate: 10 };
 
 function poolPlayer() {
   const p = engine.newProfile('tester', T0);
-  p.lifetimeCash = 2_000;
+  p.sold = 12;
   return p;
 }
 
 test('exchange: the earn gate is enforced', () => {
   const p = poolPlayer();
-  p.lifetimeCash = 100;
+  p.sold = 9;
   const f = addFish(p, 'pump_puffer');
   assert.throws(() => engine.exchange(p, [f.id], SOL, poolOpts), (err) => err.code === 'gate' && err.status === 403);
 });

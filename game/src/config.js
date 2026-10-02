@@ -9,7 +9,7 @@ export const CONFIG = {
   buyUrl: env.VITE_BUY_URL || '',
   apiUrl: (env.VITE_API_URL || '').replace(/\/$/, ''),
   minHoldUsd: 30,
-  earnGate: 1500,
+  earnGate: 10,
   explorerUrl: (mint) => `https://solscan.io/token/${mint}`,
   cluster: 'mainnet',
   autoPayouts: false,

@@ -73,7 +73,7 @@ export function createHud(app) {
   const unlockNum = h('span.num');
   const unlockOf = h('span');
   const unlockBar = h('i');
-  const sub = h('div.hud-sub', 'lifetime gold · sell fish at the rack to fill it');
+  const sub = h('div.hud-sub', 'fish sold · sell fish at the rack to fill it');
   const status = h('div');
   const bait = h('div.hud-bait');
   const deck = h('div.hud',
@@ -103,9 +103,10 @@ export function createHud(app) {
     renderTop();
     best.textContent = `🐟 ${fmt.int(p.landed)} FISH · ✦${fmt.int(p.caught)} CAUGHT`;
     const gate = CONFIG.earnGate;
-    unlockNum.textContent = fmt.int(Math.min(p.lifetimeCash, gate));
-    unlockOf.textContent = ` / ${fmt.int(gate)}`;
-    unlockBar.style.width = `${Math.min(100, (p.lifetimeCash / Math.max(1, gate)) * 100)}%`;
+    const sold = p.sold || 0;
+    unlockNum.textContent = fmt.int(Math.min(sold, gate));
+    unlockOf.textContent = ` / ${fmt.int(gate)} fish sold`;
+    unlockBar.style.width = `${Math.min(100, (sold / Math.max(1, gate)) * 100)}%`;
     const b = p.bait && BAITS_BY_ID[p.bait];
     bait.textContent = b ? `🪱 ${b.name} on the hook · ${p.baits[p.bait]} casts · +${b.luck} luck` : '';
     status.className = '';
@@ -122,7 +123,9 @@ export function createHud(app) {
         status.textContent = `${shortAddress(app.session?.wallet)} · hold $${CONFIG.minHoldUsd} of $${CONFIG.tokenSymbol} to cash in fish`;
       }
     }
-    if (p.lifetimeCash >= gate) sub.textContent = 'pool unlocked · cash in rare fish at the rack or the chest';
+    sub.textContent = sold >= gate
+      ? 'pool unlocked · cash in rare fish at the rack or the chest'
+      : 'sell fish at the rack to unlock the pool';
   }
 
   // ------------------------------------------------------------------ world labels
