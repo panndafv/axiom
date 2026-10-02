@@ -119,8 +119,11 @@ test('sign in: nonce, signature, session token', async () => {
   player = await signIn();
   const { wallet, res, message } = player;
 
-  assert.ok(message.startsWith(`${cfg.gameName} wants you to sign in with your Solana account:\n${wallet}\n\n`));
-  assert.match(message, /\nNonce: [0-9a-f]+\nIssued At: \d{4}-\d\d-\d\dT/);
+  assert.ok(message.startsWith(`Sign in to ${cfg.gameName}\n\nWallet: ${wallet}\n`));
+  // the Sign In With Solana header makes Phantom check it as a domain and block the request
+  assert.ok(!/wants you to sign in/.test(message));
+  assert.match(message, /\nSite: 127\.0\.0\.1:\d+\n/);
+  assert.match(message, /\nNonce: [0-9a-f]+\nIssued: \d{4}-\d\d-\d\dT/);
   assert.match(res.body.token, /^[0-9a-f]{64}$/);
   assert.equal(res.body.profile.id, wallet);
   assert.equal(res.body.profile.rod, 'driftwood');

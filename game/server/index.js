@@ -97,7 +97,7 @@ const routes = {
 
   // --- sign-in
 
-  'GET /api/auth/nonce': ({ query }) => auth.createNonce(query.get('wallet')),
+  'GET /api/auth/nonce': ({ query, req }) => auth.createNonce(query.get('wallet'), Date.now(), req.headers.host),
 
   'POST /api/auth/verify': async ({ body }) => {
     const { token, wallet } = auth.verify(body);

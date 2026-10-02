@@ -60,8 +60,9 @@ export async function connectAndSignIn(preferred = null) {
   try {
     const res = await provider.connect();
     publicKey = (res?.publicKey || provider.publicKey).toString();
-  } catch {
-    throw new ApiError('Wallet connection was cancelled.', 'cancelled');
+  } catch (err) {
+    console.warn('wallet connect failed', err);
+    throw walletError(err, 'connect');
   }
 
   const { message } = await publicApi.nonce(publicKey);
@@ -70,14 +71,24 @@ export async function connectAndSignIn(preferred = null) {
     const signed = await provider.signMessage(new TextEncoder().encode(message), 'utf8');
     const bytes = signed?.signature || signed;
     signature = bs58.encode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
-  } catch {
-    throw new ApiError('Signing was cancelled.', 'cancelled');
+  } catch (err) {
+    console.warn('wallet signMessage failed', err);
+    throw walletError(err, 'sign');
   }
 
   const res = await publicApi.verify(publicKey, signature);
   const session = { token: res.token, wallet: publicKey };
   saveSession(session);
   return { ...res, session };
+}
+
+// Tells "you pressed cancel" apart from the wallet failing, and shows the wallet's own reason.
+function walletError(err, step) {
+  const msg = String(err?.message || err || '');
+  if (err?.code === 4001 || /reject|cancel|denied|declined/i.test(msg)) {
+    return new ApiError(step === 'connect' ? 'You cancelled the connection in your wallet.' : 'You cancelled the signature in your wallet.', 'cancelled');
+  }
+  return new ApiError(`Your wallet couldn't ${step === 'connect' ? 'connect' : 'sign'}: ${msg || 'unknown error'}. Unlock it and try again.`, 'wallet_error');
 }
 
 export async function disconnect(provider = providers()[0]?.provider) {

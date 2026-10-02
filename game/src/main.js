@@ -284,7 +284,8 @@ function interact(it) {
 }
 
 function standUp() {
-  player.setMode('walk');
+  // step off in front of the bench, clear of it
+  player.setMode('walk', { at: player.state.sitSpot?.standAt });
   hud.setMode('walk');
 }
 

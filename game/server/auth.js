@@ -33,12 +33,18 @@ function purgeExpired(now) {
   stmt('DELETE FROM sessions WHERE expires < ?').run(now);
 }
 
-export function createNonce(wallet, now = Date.now()) {
+// A plain message on purpose. A message starting "<x> wants you to sign in with your Solana
+// account:" is the Sign In With Solana format, and wallets like Phantom then treat <x> as the
+// site's domain and block or warn when it doesn't match the page.
+export function createNonce(wallet, now = Date.now(), site = '') {
   if (!isWallet(wallet)) throw new GameError('bad_wallet', 'That is not a valid Solana address.');
   const nonce = randomBytes(16).toString('hex');
-  const message = `${config.gameName} wants you to sign in with your Solana account:\n${wallet}\n\n` +
-    'Sign in to play. This is free and does not send a transaction.\n\n' +
-    `Nonce: ${nonce}\nIssued At: ${new Date(now).toISOString()}`;
+  const host = String(site).replace(/[^a-zA-Z0-9.:-]/g, '').slice(0, 100);
+  const message = `Sign in to ${config.gameName}\n\n` +
+    `Wallet: ${wallet}\n` +
+    (host ? `Site: ${host}\n` : '') +
+    `Nonce: ${nonce}\nIssued: ${new Date(now).toISOString()}\n\n` +
+    'Signing is free. It does not send a transaction or give access to your funds.';
   tx(() => {
     purgeExpired(now);
     // One outstanding message per wallet: asking again replaces the old one.

@@ -276,6 +276,45 @@ export function bucket(withFish = true) {
   return g;
 }
 
+// Small rowboat, ~3.2 m long, bow and stern pinched to a point. Origin at the waterline.
+export function rowboat(color = '#2f7f86') {
+  const g = new THREE.Group();
+  const geo = new THREE.CylinderGeometry(0.72, 0.72, 3.2, 14, 6, true, Math.PI, Math.PI);
+  geo.rotateZ(Math.PI / 2); // axis along x, open side up
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const k = Math.abs(x) / 1.6;
+    pos.setZ(i, pos.getZ(i) * (1 - Math.pow(k, 2.5) * 0.92));
+    pos.setY(i, pos.getY(i) * 0.75 + k * k * 0.18);
+  }
+  geo.computeVertexNormals();
+  const hull = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, flatShading: true, roughness: 0.8 }));
+  hull.castShadow = true;
+  g.add(hull);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035, 4, 24), mat('#e9e2d4'));
+  rim.rotation.x = Math.PI / 2;
+  rim.scale.set(1.6, 0.66, 1);
+  rim.position.y = 0.02;
+  g.add(rim);
+  for (const x of [-0.55, 0.55]) {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 1.15 - Math.abs(x) * 0.25), mat('#a8743f'));
+    seat.position.set(x, -0.12, 0);
+    seat.castShadow = true;
+    g.add(seat);
+  }
+  for (const s of [-1, 1]) {
+    const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.2, 5), mat('#c9965a'));
+    oar.rotation.z = Math.PI / 2 - 0.08;
+    oar.rotation.y = s * 0.12;
+    oar.position.set(0.1, 0.0, s * 0.22);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.02, 0.14), mat('#c9965a'));
+    blade.position.set(1.15, 0.06, s * 0.33);
+    g.add(oar, blade);
+  }
+  return g;
+}
+
 export function bench() {
   const g = new THREE.Group();
   const seat = box(2.2, 0.12, 0.6, '#b0743f');

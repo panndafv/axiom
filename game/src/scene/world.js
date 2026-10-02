@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  mat, box, cyl, barrel, crate, lanternPost, lantern, palmTree, cooler, chest, buoy, bucket, bench,
+  mat, box, cyl, barrel, crate, lanternPost, lantern, palmTree, cooler, chest, buoy, bucket, bench, rowboat,
   pilingBundle, scoreboard, fishRack, rodRack, rodMesh, lighthouse, rockPile, island, seaStack,
 } from './props.js';
 import { woodTexture, boardTexture } from './textures.js';
@@ -19,6 +19,9 @@ const DECKS = [
   { id: 'west',     x0: -17.2, x1: -10,  z0: -5.6, z1: -2.4, dir: 'x', open: ['x0'] },
   { id: 'east',     x0: 10,    x1: 16,   z0: -1.6, z1: 1.6,  dir: 'x' },
   { id: 'eastDeck', x0: 16,    x1: 30,   z0: -7,   z1: 7,    dir: 'z', gaps: { z0: [[25.9, 28.1]] } },
+  // west pier, mirroring the shop deck on the other side of the main deck
+  { id: 'westWalk', x0: -16,   x1: -10,  z0: 3.4,  z1: 6.6,  dir: 'x' },
+  { id: 'westDeck', x0: -29,   x1: -16,  z0: 3,    z1: 13,   dir: 'z', gaps: { x0: [[6.9, 9.1]] } },
 ];
 const LIGHTHOUSE = { x: -22, z: -4, r: 5, towerR: 2.15 };
 
@@ -289,6 +292,8 @@ export function createWorld(scene) {
     [16.45, -6.55, Math.PI * 0.75, false], [29.55, -6.55, Math.PI * 0.25, true],
     [29.55, 6.55, -Math.PI * 0.25, true], [-13.6, -5.25, Math.PI / 2, false],
     [1.25, -14, 0, false],
+    [-28.55, 3.45, Math.PI * 0.75, true], [-28.55, 12.55, -Math.PI * 0.75, false],
+    [-16.45, 12.55, -Math.PI * 0.25, false], [-13, 6.25, -Math.PI / 2, false],
   ];
   for (const [x, z, rot, lit] of lanternSpots) {
     const lp = place(lanternPost(2.7), x, z, { rot, r: 0.3 });
@@ -305,12 +310,12 @@ export function createWorld(scene) {
   dynamic.add(lhLight);
   lights.push(lhLight);
 
-  // main deck clutter
-  place(barrel(), -8.3, 5.5, { r: 0.55 });
-  place(barrel('#a85a2a'), -7.3, 6.0, { rot: 0.4, r: 0.55 });
-  place(crate(), -8.6, 4.2, { rot: 0.2, r: 0.65 });
-  place(crate(0.7), -8.6, 4.2, { rot: 0.7, y: DECK_Y + 0.9 });
-  place(bucket(), -6.6, 6.0, { r: 0.35 });
+  // main deck clutter (kept clear of the walkway to the west pier)
+  place(barrel(), -5.6, 6.1, { r: 0.55 });
+  place(barrel('#a85a2a'), -4.5, 6.3, { rot: 0.4, r: 0.55 });
+  place(crate(), -6.9, 6.0, { rot: 0.2, r: 0.65 });
+  place(crate(0.7), -6.9, 6.0, { rot: 0.7, y: DECK_Y + 0.9 });
+  place(bucket(), -3.5, 6.3, { r: 0.35 });
   place(buoy(), 9.0, 6.1, { r: 0.45 });
   place(crate(0.8, '#e0ae76'), 8.8, -4.6, { rot: 0.5, r: 0.6 });
   place(barrel(), -8.9, -5.6, { r: 0.55 });
@@ -330,6 +335,22 @@ export function createWorld(scene) {
   place(bucket(), -2.6, -24.9, { r: 0.35 });
   place(barrel(), 3.3, -23.4, { r: 0.55 });
   place(lantern(), -1.3, -25.6, {}).scale.setScalar(1.2);
+
+  // west pier: a quiet fishing deck with a boat tied up alongside
+  const westBundle = place(pilingBundle(), -29.45, 9.7, {});
+  westBundle.position.y = DECK_Y;
+  place(barrel(), -17.1, 4.0, { r: 0.55 });
+  place(barrel('#c86f35'), -18.2, 3.75, { rot: 1.2, r: 0.55 });
+  place(crate(), -17.0, 12.0, { rot: 0.3, r: 0.65 });
+  place(crate(0.6, '#e0ae76'), -17.0, 12.0, { rot: 0.9, y: DECK_Y + 0.9 });
+  place(crate(0.8), -18.1, 12.2, { rot: -0.2, r: 0.6 });
+  place(bucket(), -27.5, 6.3, { r: 0.35 });
+  place(buoy(), -27.9, 12.2, { r: 0.45 });
+  place(lantern(), -27.7, 9.8, {}).scale.setScalar(1.2);
+  const boat = rowboat();
+  boat.position.set(-22.5, 0.32, 14.6);
+  boat.rotation.y = 0.06;
+  dynamic.add(boat);
 
   // east deck: shop, rest, palm corner, reward chest
   const sandMound = cyl(1.3, 1.6, 0.25, 9, '#e6c98f');
@@ -398,8 +419,12 @@ export function createWorld(scene) {
     fishSpot('north', 0, -25.25, 0, -1),
     fishSpot('lighthouse', LH.x + lhSpotDir.x * 3.9, LH.z + lhSpotDir.z * 3.9, lhSpotDir.x, lhSpotDir.z),
     fishSpot('east', 27, -6.25, 0, -1),
+    fishSpot('west', -28.25, 8, -1, 0),
     { id: 'shop', kind: 'shop', pos: new THREE.Vector3(27.6, DECK_Y, 2.6), title: 'SHOP', hint: '(E) trade', color: '#ffb547', icon: '⚓', radius: 2.8 },
-    { id: 'rest', kind: 'rest', pos: new THREE.Vector3(22, DECK_Y, 6.0), title: 'REST', hint: '(E) sit', color: '#b98cff', icon: '✦', radius: 2.3 },
+    {
+      id: 'rest', kind: 'rest', pos: new THREE.Vector3(22, DECK_Y, 6.0), title: 'REST', hint: '(E) sit', color: '#b98cff', icon: '✦', radius: 2.3,
+      sitAt: new THREE.Vector3(22, DECK_Y, 6.1), standAt: new THREE.Vector3(22, DECK_Y, 4.6),
+    },
     { id: 'pool', kind: 'pool', pos: new THREE.Vector3(20.6, DECK_Y, -5.9), title: 'REWARD POOL', hint: '(E) cash in', color: '#ffd95c', icon: '◆', radius: 2.4 },
     { id: 'scores', kind: 'scores', pos: new THREE.Vector3(4.0, DECK_Y + 0.6, -6.35), title: 'SCORES', hint: '(E) view', color: '#ffd27a', icon: '✦', radius: 2.4 },
     { id: 'rack', kind: 'rack', pos: new THREE.Vector3(6.6, DECK_Y, -6.2), title: 'FISH RACK', hint: '(E) sell', color: '#ffb547', icon: '✦', radius: 2.2 },
@@ -425,6 +450,9 @@ export function createWorld(scene) {
     setRackRods,
     update(t, dt) {
       lh.userData.beams.rotation.y = t * 0.45;
+      boat.position.y = 0.32 + Math.sin(t * 1.3) * 0.04;
+      boat.rotation.z = Math.sin(t * 0.9) * 0.03;
+      boat.rotation.x = Math.sin(t * 1.1 + 1) * 0.02;
       rippleMesh.material.uniforms.time.value = t;
       npc.animate(dt, 0, 'fish', Math.sin(t * 0.8) * 0.2);
       for (let i = 0; i < lights.length - 1; i++) {

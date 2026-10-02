@@ -62,8 +62,8 @@ export function createPlayer(scene, camera, world, input, settings) {
       char.rodInHand();
     } else if (mode === 'sit') {
       state.sitSpot = opts.spot;
-      state.pos.set(opts.spot.pos.x, DECK_Y, opts.spot.pos.z + 0.05);
-      state.facing = Math.PI;
+      state.pos.copy(opts.spot.sitAt || opts.spot.pos);
+      state.facing = opts.spot.sitFacing ?? Math.PI;
       char.rodOnBack();
     } else {
       char.rodOnBack();
@@ -71,6 +71,8 @@ export function createPlayer(scene, camera, world, input, settings) {
         state.pos.copy(world.spawn.pos);
         state.facing = world.spawn.yaw;
         state.camYaw = 0;
+      } else if (mode === 'walk' && opts.at) {
+        state.pos.copy(opts.at);
       }
     }
     if (mode === 'walk') {
@@ -89,8 +91,14 @@ export function createPlayer(scene, camera, world, input, settings) {
   function tryMove(nx, nz) {
     if (!world.isWalkable(nx, nz)) return false;
     for (const c of world.colliders) {
-      const dx = nx - c.x, dz = nz - c.z;
-      if (dx * dx + dz * dz < (c.r + 0.32) ** 2) return false;
+      const r2 = (c.r + 0.32) ** 2;
+      const dNew = (nx - c.x) ** 2 + (nz - c.z) ** 2;
+      if (dNew >= r2) continue;
+      // Already overlapping something (e.g. just stood up from the bench): stepping away from
+      // it is always allowed, so the player can never get wedged.
+      const dOld = (state.pos.x - c.x) ** 2 + (state.pos.z - c.z) ** 2;
+      if (dOld < r2 && dNew > dOld) continue;
+      return false;
     }
     return true;
   }
