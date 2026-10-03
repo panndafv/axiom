@@ -97,8 +97,10 @@ Per-fish overrides live on the species in `rules.js` (`weight`, `poolPct`).
   Press E at the lighthouse door (the prompt only appears when you stand there), walk round the
   gallery and take it. The server only hands it to a wallet whose player is up the lighthouse in a
   lobby at that moment.
-- **The Founder rod** (+50 luck) is not for sale. The first 100 wallets to land a fish get it with
-  that catch, along with a founder number (shown on their profile). It is listed in the shop with a
+- **The Founder rod** (+50 luck) is not for sale. The first 100 wallets holding `MIN_HOLD_USD` of
+  the token to land a fish get it with that catch, along with a founder number (shown on their
+  profile). A wallet that catches one without holding enough is told so, and can still claim a
+  slot on a later catch once it does. It is listed in the shop with a
   ??? price. `FOUNDER_SLOTS` changes the 100; the server log shows how many have gone.
 - **The prize wheel** stands on the island, across the campfire from the scoreboard. One free spin
   every 24 hours, then ✦1,000 a spin. Prizes are gold (✦250 to ✦2,500), bait packs and rods; a rod

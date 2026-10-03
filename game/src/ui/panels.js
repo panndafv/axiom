@@ -86,7 +86,8 @@ export function createPanels(app) {
         h('p', `Every fish you land goes straight into your 🎒 backpack, which holds ${GAME.storageMax}. Sell them for gold at the fish rack, or hold the rare ones and cash them in at the reward pool. When the backpack is full, sell some before you cast again.`),
         h('h3', 'Luck'),
         h('p', 'Rods and bait add 🍀 luck. More luck means rarer fish bite more often. Buy them at the ⚓ shop with the gold you make selling fish.'),
-        h('p', 'The first 100 wallets to land a fish get the ', h('b', { style: { color: '#ffc861' } }, 'FOUNDER'), ` rod (🍀 +${RODS_BY_ID.founder.luck} luck), which is never sold.`),
+        h('p', `The first 100 wallets holding $${CONFIG.minHoldUsd}+ of $${CONFIG.tokenSymbol} to land a fish get the `, h('b', { style: { color: '#ffc861' } }, 'FOUNDER'),
+          ` rod (🍀 +${RODS_BY_ID.founder.luck} luck), which is never sold.`),
         h('p', 'Every 10th cast is a ', h('b', { style: { color: '#ffd34d' } }, 'GOLDEN CAST'), ' with 2× luck, and every 50th a ',
           h('b', { style: { color: '#ff7ad9' } }, 'RAINBOW CAST'), ' with 5× luck. The counters at the bottom of the screen show how close the next one is.'),
         h('h3', 'Halos'),
@@ -381,7 +382,7 @@ export function createPanels(app) {
             if (r.hidden && !owned) {
               const how = {
                 wheel: ['Spin the prize wheel on the island: 1 spin in 100.', '🔒 win it'],
-                founder: ['Given to the first 100 anglers to land a fish. Not for sale.', '🔒 ???'],
+                founder: [`Given to the first 100 wallets holding $${CONFIG.minHoldUsd}+ of $${CONFIG.tokenSymbol} to land a fish. Not for sale.`, '🔒 ???'],
               }[r.from] || ['Hidden somewhere on the pier. Not for sale.', '🔒 find it'];
               return h('div.card.locked',
                 rodIcon(r, { dim: true }),

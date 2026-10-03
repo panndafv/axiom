@@ -177,13 +177,19 @@ app.callLater = async (method, ...args) => {
   }
 };
 
-// The first 100 wallets to land a fish get the Founder rod with that catch.
+// The first 100 wallets holding the token to land a fish get the Founder rod with that catch.
+// Anyone who catches one without holding enough hears about it once per visit.
+let founderHintShown = false;
 app.onCatch = (fish, res) => {
-  if (!res?.founder) return;
-  setTimeout(() => {
-    sfx.land(5);
-    toast(`★ You're angler #${res.founder} of the first 100! The FOUNDER rod (+${RODS_BY_ID.founder.luck} luck) is yours.`, 'good');
-  }, 1200);
+  if (res?.founder) {
+    setTimeout(() => {
+      sfx.land(5);
+      toast(`★ You're angler #${res.founder} of the first 100! The FOUNDER rod (+${RODS_BY_ID.founder.luck} luck) is yours.`, 'good');
+    }, 1200);
+  } else if (res?.founderNeedsHold && !founderHintShown) {
+    founderHintShown = true;
+    setTimeout(() => toast(`Founder rods are still up for grabs: hold $${CONFIG.minHoldUsd}+ of $${CONFIG.tokenSymbol} and your next catch claims one.`), 1200);
+  }
 };
 
 app.modalOpen = () => !!panels.open;

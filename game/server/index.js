@@ -10,7 +10,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import bs58 from 'bs58';
 import { config } from './config.js';
-import { openDb, closeDb, withProfile, topScores, rankOf, foundersSoFar } from './db.js';
+import { openDb, closeDb, withProfile, getProfile, topScores, rankOf, foundersSoFar } from './db.js';
 import * as auth from './auth.js';
 import * as pool from './pool.js';
 import * as payer from './payer.js';
@@ -72,10 +72,11 @@ function play(wallet, fn) {
   return withProfile(wallet, (p, now) => ({ ...fn(p, now), profile: engine.publicProfile(p, now) }));
 }
 
-// The first config.founderSlots wallets to land a fish get a founder number and the Founder rod.
-// Runs inside the profile transaction, so two players can never get the same number. Once the
-// slots are gone the count is not looked up again.
+// The first config.founderSlots wallets holding MIN_HOLD_USD of the token to land a fish get a
+// founder number and the Founder rod. founderGift runs inside the profile transaction, so two
+// players can never get the same number. Once the slots are gone the count is not looked up again.
 let foundersFull = false;
+const mightBeFounder = (wallet) => !foundersFull && !getProfile(wallet)?.founder;
 function founderGift(p) {
   if (p.founder || foundersFull) return null;
   const n = foundersSoFar();
@@ -152,9 +153,17 @@ const routes = {
 
   'POST /api/fish/cast': user((wallet) => play(wallet, (p, now) => engine.cast(p, now))),
 
-  'POST /api/fish/land': user((wallet, { body }) => {
+  'POST /api/fish/land': user(async (wallet, { body }) => {
     const castId = needString(body, 'castId');
-    const out = play(wallet, (p, now) => ({ ...engine.land(p, castId, now), founder: founderGift(p) }));
+    // Founder hopefuls must hold the token: checked before the transaction (usually from cache).
+    const hold = mightBeFounder(wallet) ? await holding(wallet) : null;
+    const out = play(wallet, (p, now) => {
+      const landed = engine.land(p, castId, now);
+      const founder = hold?.ok ? founderGift(p) : null;
+      // still slots left, but this wallet does not hold enough yet: the client says how to get one
+      const founderNeedsHold = !!hold && !hold.ok && !foundersFull && !p.founder;
+      return { ...landed, founder, founderNeedsHold };
+    });
     lobby.announceCatch(wallet, out.fish);
     return out;
   }),

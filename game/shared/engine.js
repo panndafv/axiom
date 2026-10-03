@@ -46,7 +46,7 @@ export function newProfile(id, now = Date.now()) {
     name: null,       // chosen name shown to other players; null = short wallet / guest tag
     freeSpinAt: 0,    // last free spin of the prize wheel (one every 24 hours)
     spins: 0,         // prize wheel spins, free and paid
-    founder: null,    // 1..FOUNDERS.slots for the first wallets to land a fish (they get the Founder rod)
+    founder: null,    // 1..FOUNDERS.slots for the first holders to land a fish (they get the Founder rod)
     storage: [],      // the backpack, GAME.storageMax fish
     nextFishId: 1,
     log: {},          // speciesId -> { n, maxKg, first }
@@ -296,7 +296,7 @@ export function spin(p, now = Date.now(), rng = cryptoRng) {
 const NOT_FOR_SALE = {
   lighthouse: 'It is hidden somewhere on the pier.',
   wheel: 'Win it on the prize wheel.',
-  founder: 'It went to the first 100 anglers.',
+  founder: 'It goes to the first 100 holders to land a fish.',
 };
 
 // Gives founder number `n` and the Founder rod. It goes straight into your hands unless you are
