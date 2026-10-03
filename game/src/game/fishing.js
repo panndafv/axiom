@@ -268,7 +268,7 @@ export function createFishing({ scene, player, app, hud, input }) {
         }
         const sp = SPECIES_BY_ID[res.fish.sp];
         showLanded(sp, res.fish, res.isNew);
-        app.onCatch?.(res.fish);
+        app.onCatch?.(res.fish, res);
         line.visible = false;
         bobber.visible = false;
         backToIdle(1500);

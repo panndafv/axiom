@@ -65,6 +65,9 @@ export const RODS = [
   { id: 'bonecaster', name: 'Bonecaster', price: 1_200, luck: 16, reel: 1.08, tolerance: 1.1,  color: '#e6dccb', tip: '#ff6a3d', glow: null,      blurb: 'Pale as driftbone.' },
   { id: 'sunset',     name: 'Sunset',     price: 3_500, luck: 30, reel: 1.14, tolerance: 1.18, color: '#ffae3d', tip: '#ffd36b', glow: '#ffb347', blurb: 'Glowing golden embers.' },
   { id: 'tidecaster', name: 'Tidecaster', price: 8_000, luck: 40, reel: 1.2,  tolerance: 1.25, color: '#3ad6c8', tip: '#9ffcff', glow: '#4ff2e4', blurb: 'Shimmering deep-sea cyan.' },
+  // Not for sale: the first FOUNDERS.slots wallets to land a fish get one. Listed in the shop with
+  // a ??? price. gripColor / reelColor paint the handle wrap and the reel.
+  { id: 'founder',    name: 'Founder',    price: null,  luck: 50, reel: 1.23, tolerance: 1.29, color: '#f2a93b', tip: '#ff8a3d', glow: '#ffc861', gripColor: '#3f9aa3', reelColor: '#d9a441', hidden: true, teaser: true, from: 'founder', blurb: 'For the first 100 anglers. Golden ash, a sea-glass grip and a brass reel.' },
   // Not for sale: it leans against the lamp room at the top of the lighthouse for whoever climbs up.
   { id: 'beacon',     name: 'Beacon',     price: null,  luck: 25, reel: 1.22, tolerance: 1.28, color: '#fff1c2', tip: '#ffe27a', glow: '#ffe9a0', hidden: true, from: 'lighthouse', blurb: 'Found at the top of the lighthouse.' },
   // Not for sale either: a 1 in 100 prize on the island's wheel.
@@ -72,6 +75,9 @@ export const RODS = [
 ];
 
 export const RODS_BY_ID = Object.fromEntries(RODS.map((r) => [r.id, r]));
+
+// The Founder rod goes to the first `slots` wallets to land a fish (FOUNDER_SLOTS on the server).
+export const FOUNDERS = { slots: 100, rod: 'founder' };
 
 // Bait is bought in packs and used up one per cast while it is on the hook. Its luck stacks on
 // top of the rod's.

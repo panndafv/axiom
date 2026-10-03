@@ -164,6 +164,11 @@ export function editProfile(wallet, fn, now = Date.now()) {
   return out;
 }
 
+// How many founder numbers have been given out (see the land route in index.js).
+export function foundersSoFar() {
+  return stmt("SELECT COUNT(*) AS n FROM profiles WHERE json_extract(data, '$.founder') IS NOT NULL").get().n;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Leaderboard
 

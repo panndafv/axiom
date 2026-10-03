@@ -5,7 +5,7 @@
 import {
   GAME, RARITIES, RODS_BY_ID, BAITS_BY_ID, SHOP, SPECIES_BY_ID,
   rollSpecies, rollKg, fishValue, biteDelayMs, minReelMs, speciesPoolPct, speciesPayout, cryptoRng, randomLook,
-  specialCast, boostedLuck, sellPrice, cleanName, SHIRT_COLORS, WHEEL, rollWheel,
+  specialCast, boostedLuck, sellPrice, cleanName, SHIRT_COLORS, WHEEL, rollWheel, FOUNDERS,
 } from './rules.js';
 
 export class GameError extends Error {
@@ -46,6 +46,7 @@ export function newProfile(id, now = Date.now()) {
     name: null,       // chosen name shown to other players; null = short wallet / guest tag
     freeSpinAt: 0,    // last free spin of the prize wheel (one every 24 hours)
     spins: 0,         // prize wheel spins, free and paid
+    founder: null,    // 1..FOUNDERS.slots for the first wallets to land a fish (they get the Founder rod)
     storage: [],      // the backpack, GAME.storageMax fish
     nextFishId: 1,
     log: {},          // speciesId -> { n, maxKg, first }
@@ -187,7 +188,7 @@ export function buy(p, kind, id) {
   if (kind === 'rod' && p.rods.includes(id)) throw new GameError('owned', 'You already own that rod.');
   if (kind === 'outfit' && p.outfits.includes(id)) throw new GameError('owned', 'You already own that outfit.');
   if (kind === 'halo' && p.halos.includes(id)) throw new GameError('owned', 'You already own that halo.');
-  if (item.price === null) throw new GameError('not_for_sale', 'That one is not for sale. It is hidden somewhere on the pier.');
+  if (item.price === null) throw new GameError('not_for_sale', `That one is not for sale. ${NOT_FOR_SALE[item.from] || ''}`.trim());
   if (p.cash < item.price) throw new GameError('broke', `You need ${item.price - p.cash} more gold.`);
   p.cash -= item.price;
   if (kind === 'rod') {
@@ -289,6 +290,23 @@ export function spin(p, now = Date.now(), rng = cryptoRng) {
   }
   p.spins = (p.spins || 0) + 1;
   return out;
+}
+
+// Where the rods that are not for sale come from, for the message when someone tries to buy one.
+const NOT_FOR_SALE = {
+  lighthouse: 'It is hidden somewhere on the pier.',
+  wheel: 'Win it on the prize wheel.',
+  founder: 'It went to the first 100 anglers.',
+};
+
+// Gives founder number `n` and the Founder rod. It goes straight into your hands unless you are
+// mid-cast or already hold something luckier. The server decides who is a founder (server only).
+export function makeFounder(p, n) {
+  p.founder = n;
+  const rod = RODS_BY_ID[FOUNDERS.rod];
+  if (!p.rods.includes(rod.id)) p.rods.push(rod.id);
+  if (!p.cast && (RODS_BY_ID[p.rod]?.luck ?? 0) < rod.luck) p.rod = rod.id;
+  return n;
 }
 
 // Admin gift: puts an item in a player's profile for free (hidden rods too) and equips it.
@@ -398,6 +416,7 @@ export function publicProfile(p, now = Date.now()) {
     casts: p.casts,
     name: p.name,
     spins: p.spins,
+    founder: p.founder,
     freeSpinInMs: Math.max(0, (p.freeSpinAt || 0) + WHEEL.freeEveryMs - now),
     look: p.look,
     luck: currentLuck(p),

@@ -10,7 +10,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import bs58 from 'bs58';
 import { config } from './config.js';
-import { openDb, closeDb, withProfile, topScores, rankOf } from './db.js';
+import { openDb, closeDb, withProfile, topScores, rankOf, foundersSoFar } from './db.js';
 import * as auth from './auth.js';
 import * as pool from './pool.js';
 import * as payer from './payer.js';
@@ -70,6 +70,20 @@ function sameSecret(given, expected) {
 // Runs fn(profile, now) in a profile transaction and adds the updated public profile.
 function play(wallet, fn) {
   return withProfile(wallet, (p, now) => ({ ...fn(p, now), profile: engine.publicProfile(p, now) }));
+}
+
+// The first config.founderSlots wallets to land a fish get a founder number and the Founder rod.
+// Runs inside the profile transaction, so two players can never get the same number. Once the
+// slots are gone the count is not looked up again.
+let foundersFull = false;
+function founderGift(p) {
+  if (p.founder || foundersFull) return null;
+  const n = foundersSoFar();
+  if (n >= config.founderSlots) {
+    foundersFull = true;
+    return null;
+  }
+  return engine.makeFounder(p, n + 1);
 }
 
 // Route wrappers: user() passes the signed-in wallet, admin() checks x-admin-key.
@@ -140,7 +154,7 @@ const routes = {
 
   'POST /api/fish/land': user((wallet, { body }) => {
     const castId = needString(body, 'castId');
-    const out = play(wallet, (p, now) => engine.land(p, castId, now));
+    const out = play(wallet, (p, now) => ({ ...engine.land(p, castId, now), founder: founderGift(p) }));
     lobby.announceCatch(wallet, out.fish);
     return out;
   }),
@@ -575,6 +589,7 @@ export async function startServer({ port = config.port, host = config.host, dbPa
     if (config.maintenance) console.warn(`MAINTENANCE: the game is paused ("${config.maintenance}").`);
     if (config.testWallets.size) console.warn(`TEST_WALLETS: ${config.testWallets.size} wallet(s) skip the holding check. Delete it at launch.`);
     if (config.hideMint) console.log('HIDE_MINT: the token address is hidden from players.');
+    console.log(`Founder rods given: ${Math.min(foundersSoFar(), config.founderSlots)} / ${config.founderSlots}.`);
   }
   payer.start();
   server.on('close', () => payer.stop());

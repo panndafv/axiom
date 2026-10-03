@@ -177,6 +177,15 @@ app.callLater = async (method, ...args) => {
   }
 };
 
+// The first 100 wallets to land a fish get the Founder rod with that catch.
+app.onCatch = (fish, res) => {
+  if (!res?.founder) return;
+  setTimeout(() => {
+    sfx.land(5);
+    toast(`★ You're angler #${res.founder} of the first 100! The FOUNDER rod (+${RODS_BY_ID.founder.luck} luck) is yours.`, 'good');
+  }, 1200);
+};
+
 app.modalOpen = () => !!panels.open;
 app.onModalChange = (open) => {
   input.enabled = !open;

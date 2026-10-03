@@ -410,13 +410,14 @@ export function rodRack() {
   return g;
 }
 
-// One painted mesh for shaft, grip and reel, plus a small glowing tip.
-export function rodMesh(color = '#9a6a3c', tip = '#ff6a3d', length = 1.9) {
+// One painted mesh for shaft, grip and reel, plus a small glowing tip. `grip` and `reel` colour
+// the handle wrap and the reel (rods can set gripColor / reelColor).
+export function rodMesh(color = '#9a6a3c', tip = '#ff6a3d', length = 1.9, { grip = '#3b2a22', reel = '#c9ccd2' } = {}) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(paintedGeometry([
     { geo: new THREE.CylinderGeometry(0.018, 0.04, length, 6), color, pos: [0, length / 2, 0] },
-    { geo: new THREE.CylinderGeometry(0.05, 0.05, 0.38, 6), color: '#3b2a22', pos: [0, 0.19, 0] },
-    { geo: new THREE.CylinderGeometry(0.08, 0.08, 0.06, 8), color: '#c9ccd2', pos: [0.07, 0.45, 0], rot: [0, 0, Math.PI / 2] },
+    { geo: new THREE.CylinderGeometry(0.05, 0.05, 0.38, 6), color: grip, pos: [0, 0.19, 0] },
+    { geo: new THREE.CylinderGeometry(0.08, 0.08, 0.06, 8), color: reel, pos: [0.07, 0.45, 0], rot: [0, 0, Math.PI / 2] },
   ]), paintedMaterial);
   body.castShadow = true;
   const tipBall = mesh(new THREE.SphereGeometry(0.035, 6, 4), mat(tip, { emissive: tip, emissiveIntensity: 0.4 }), { isStatic: false });

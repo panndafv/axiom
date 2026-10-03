@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
-import { LAMPORTS_PER_SOL } from '../shared/rules.js';
+import { LAMPORTS_PER_SOL, FOUNDERS } from '../shared/rules.js';
 
 export const GAME_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -141,6 +141,7 @@ export const config = {
   earnGate: num('EARN_GATE', 10), // fish a wallet must have sold before it can cash any in
   poolDailyCapPct: num('POOL_DAILY_CAP_PCT', 0.1),
   poolDailyFish: num('POOL_DAILY_FISH', 30), // most fish one wallet can cash in per 24 hours
+  founderSlots: num('FOUNDER_SLOTS', FOUNDERS.slots), // the first this many wallets to land a fish get the Founder rod
   poolWallet,
   poolMode: poolWallet ? 'wallet' : 'ledger',
   // With the pool wallet's key the server sends payouts itself (see payer.js).

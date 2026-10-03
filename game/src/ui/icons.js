@@ -120,7 +120,10 @@ export function rodIcon(rod, { dim = false, size = 96 } = {}) {
     <svg width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
       ${glow ? `<defs><radialGradient id="rg${rod.id}"><stop offset="0" stop-color="${rod.glow}" stop-opacity="0.55"/><stop offset="1" stop-color="${rod.glow}" stop-opacity="0"/></radialGradient></defs><circle cx="55" cy="45" r="42" fill="url(#rg${rod.id})"/>` : ''}
       <line x1="26" y1="88" x2="80" y2="10" stroke="${color}" stroke-width="5" stroke-linecap="round"/>
-      <line x1="24" y1="91" x2="36" y2="74" stroke="${dim ? '#3a2f28' : '#5a3a26'}" stroke-width="8" stroke-linecap="round"/>
+      <line x1="24" y1="91" x2="36" y2="74" stroke="${dim ? '#3a2f28' : rod.gripColor || '#5a3a26'}" stroke-width="8" stroke-linecap="round"/>
+      ${rod.reelColor ? `<g fill="${dim ? '#3a2f28' : rod.reelColor}" stroke="${dim ? '#2a221d' : '#6b4a1e'}" stroke-width="1">
+        <rect x="38" y="76" width="9" height="11" rx="2.5" transform="rotate(35 42 81)"/>
+        <line x1="40" y1="73" x2="43" y2="77"/><circle cx="49" cy="86" r="2.2"/></g>` : ''}
       <line x1="80" y1="10" x2="84" y2="58" stroke="${dim ? '#4b3e35' : '#e9e2d4'}" stroke-width="0.8"/>
       <circle cx="84" cy="60" r="3.2" fill="${tip}"/>
       ${sparks}

@@ -448,7 +448,7 @@ export function createWorld(scene) {
     const step = Math.min(0.28, 1.3 / Math.max(1, shown.length - 1));
     shown.forEach((def, i) => {
       const have = owned.includes(def.id);
-      const r = rodMesh(have ? def.color : '#4a3c34', have ? def.tip : '#4a3c34', 1.6);
+      const r = rodMesh(have ? def.color : '#4a3c34', have ? def.tip : '#4a3c34', 1.6, have ? { grip: def.gripColor, reel: def.reelColor } : {});
       r.position.set((i - (shown.length - 1) / 2) * step, 0.3, 0.02); // centred on the rack
       r.rotation.set(-0.12, 0, 0.04);
       rackRods.add(r);

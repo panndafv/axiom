@@ -91,7 +91,7 @@ export function createCharacter({ shirt = '#1f6c75', pants = '#1e2a4b', hair = '
 
   function setRod(def) {
     if (rodObj) rodSlot.remove(rodObj);
-    rodObj = def ? rodMesh(def.color, def.tip) : rodMesh();
+    rodObj = def ? rodMesh(def.color, def.tip, undefined, { grip: def.gripColor, reel: def.reelColor }) : rodMesh();
     rodObj.traverse((o) => { o.castShadow = shadows; });
     rodSlot.add(rodObj);
     return rodObj;
